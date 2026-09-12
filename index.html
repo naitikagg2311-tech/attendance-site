@@ -348,6 +348,17 @@
   // Point this at your deployed backend before publishing.
   const API_BASE = "https://attendance-site-bop1.onrender.com";
 
+  // Every piece of text below ultimately comes from an external source —
+  // Moodle's attendance pages, or the shared schedule Google Sheet, which
+  // may be editable by people other than you. Anything inserted into the
+  // page via innerHTML MUST go through this first, or a malicious cell/
+  // description could run as real script in every visitor's browser.
+  function esc(str) {
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML;
+  }
+
   let allCourses = [];
   let activeSemester = null;
 
@@ -451,7 +462,7 @@
       row.className = 'subject-row';
       row.innerHTML = `
         <div class="subject-head">
-          <h3>${course.display_name}</h3>
+          <h3>${esc(course.display_name)}</h3>
           <span class="subject-tally">${presentCount} / ${sessions.length} present · ${pct}%</span>
         </div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
@@ -460,11 +471,11 @@
             ? `<div class="empty-state">No sessions recorded yet.</div>`
             : sessions.map(s => `
               <div class="session-row">
-                <span>${s.date}</span>
-                <span class="time">${s.time || ''}</span>
-                <span>${s.session}</span>
-                <span class="${statusClass(s.status)}">${s.status}</span>
-                <span>${s.points}</span>
+                <span>${esc(s.date)}</span>
+                <span class="time">${esc(s.time || '')}</span>
+                <span>${esc(s.session)}</span>
+                <span class="${statusClass(s.status)}">${esc(s.status)}</span>
+                <span>${esc(s.points)}</span>
               </div>
             `).join('')}
         </div>
@@ -525,7 +536,7 @@
       .filter(s => s.is_subject)
       .map(s => s.subject))].sort();
     filterEl.innerHTML = `<option value="">All subjects</option>` +
-      subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+      subjects.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
     filterEl.value = subjects.includes(current) ? current : '';
   }
 
@@ -577,13 +588,13 @@
         <div class="next-class-card" style="border-left-color:${color}">
           <div>
             <div class="eyebrow">Next class</div>
-            <h3 class="serif">${nextClass.subject}</h3>
-            <div class="when">${nextClass.day}, ${nextClass.date_nice} · ${nextClass.time_nice}</div>
+            <h3 class="serif">${esc(nextClass.subject)}</h3>
+            <div class="when">${esc(nextClass.day)}, ${esc(nextClass.date_nice)} · ${esc(nextClass.time_nice)}</div>
           </div>
           ${dt ? `<div class="countdown">${formatCountdown(dt)}<span>from now</span></div>` : ''}
         </div>`;
     } else {
-      html += `<div class="empty-state">No upcoming classes found${filterSubject ? ' for ' + filterSubject : ''}.</div>`;
+      html += `<div class="empty-state">No upcoming classes found${filterSubject ? ' for ' + esc(filterSubject) : ''}.</div>`;
     }
 
     if (!filterSubject) {
@@ -593,7 +604,7 @@
         subjects.forEach(([name, count]) => {
           html += `<div class="remaining-item">
             <span class="dot" style="background:${subjectColor(name)}"></span>
-            <span>${name}</span>
+            <span>${esc(name)}</span>
             <span class="count"><b>${count}</b> left</span>
           </div>`;
         });
@@ -608,20 +619,20 @@
     });
 
     if (upcoming.length) {
-      html += `<div class="schedule-section-title">${filterSubject ? filterSubject + ' — full upcoming schedule' : 'Upcoming'}</div>`;
+      html += `<div class="schedule-section-title">${filterSubject ? esc(filterSubject) + ' — full upcoming schedule' : 'Upcoming'}</div>`;
     } else if (filterSubject) {
-      html += `<div class="empty-state">No more upcoming sessions for ${filterSubject}.</div>`;
+      html += `<div class="empty-state">No more upcoming sessions for ${esc(filterSubject)}.</div>`;
     }
     // No cap — every remaining day in the schedule renders; the page
     // just scrolls, rather than cutting off after a fixed number of days.
     Object.entries(byDate).forEach(([date, sessions]) => {
-      html += `<div class="day-group"><h4>${sessions[0].date_nice}</h4><div class="timeline">`;
+      html += `<div class="day-group"><h4>${esc(sessions[0].date_nice)}</h4><div class="timeline">`;
       sessions.forEach(s => {
         const dotColor = s.is_subject ? subjectColor(s.subject) : 'var(--hairline)';
         const labelClass = s.is_subject ? 'subject-label' : 'subject-label event-label';
         html += `<div class="day-row" style="--dot-color:${dotColor}">
-          <span class="time-label">${s.time_nice}</span>
-          <span class="${labelClass}">${s.subject}</span>
+          <span class="time-label">${esc(s.time_nice)}</span>
+          <span class="${labelClass}">${esc(s.subject)}</span>
         </div>`;
       });
       html += `</div></div>`;
