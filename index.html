@@ -450,7 +450,7 @@
       const sessions = course.sessions || [];
       const presentCount = sessions.filter(s => /present/i.test(s.status)).length;
       const pct = sessions.length ? Math.round((presentCount / sessions.length) * 100) : 0;
-      const risk = attendanceRisk(presentCount, sessions.length);
+      const risk = computeRisk(course, sessions, presentCount);
       rows.push([course.display_name, presentCount, sessions.length, `${pct}%`, risk ? risk.message : '']);
     });
 
@@ -492,8 +492,75 @@
   const REQUIRED_ATTENDANCE = 0.75; // IIMK's typical minimum — adjust here if yours differs
 
   /**
+   * '5PM - 6PM' -> 1, '10:00 AM - 12:15 PM' -> 2.25, etc. Returns null if
+   * the string can't be parsed, so callers can fall back gracefully.
+   */
+  function parseTimeToDecimalHours(t) {
+    const m = t.match(/(\d{1,2})(?::(\d{2}))?\s*([AP]M)/i);
+    if (!m) return null;
+    let h = parseInt(m[1], 10);
+    const min = m[2] ? parseInt(m[2], 10) : 0;
+    const period = m[3].toUpperCase();
+    if (period === 'PM' && h !== 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return h + min / 60;
+  }
+
+  function sessionDurationHours(timeStr) {
+    if (!timeStr) return null;
+    const parts = timeStr.split('-');
+    if (parts.length !== 2) return null;
+    const start = parseTimeToDecimalHours(parts[0].trim());
+    const end = parseTimeToDecimalHours(parts[1].trim());
+    if (start == null || end == null) return null;
+    let diff = end - start;
+    if (diff <= 0) diff += 12; // guards against an unexpected AM/PM edge case
+    return diff;
+  }
+
+  /**
+   * Sums each session's actual duration (a 1-hour class and a 2-hour
+   * class count differently) rather than treating every session as one
+   * unit. Falls back to 1 hour for any session whose time couldn't be
+   * parsed, so one odd row doesn't break the whole total.
+   */
+  function hoursSummary(sessions) {
+    let conducted = 0, attended = 0;
+    sessions.forEach(s => {
+      const dur = sessionDurationHours(s.time) ?? 1;
+      conducted += dur;
+      if (/present/i.test(s.status)) attended += dur;
+    });
+    return { conducted, attended };
+  }
+
+  /**
+   * Used when the subject's total course hours are known (course_map's
+   * total_hours). Because the total is fixed, this can say something the
+   * session-count version can't: whether 75% is still mathematically
+   * reachable at all, not just how many more sessions to attend.
+   */
+  function attendanceRiskHours(attended, conducted, totalHours) {
+    const allowedMisses = totalHours * (1 - REQUIRED_ATTENDANCE);
+    const missedSoFar = conducted - attended;
+    const remainingAllowed = allowedMisses - missedSoFar;
+    const hoursLeft = Math.max(totalHours - conducted, 0);
+    if (remainingAllowed >= 0) {
+      return {
+        atRisk: false,
+        message: `${Math.round(conducted)} of ${totalHours} hrs done — can miss ${Math.floor(remainingAllowed)} more hrs (${Math.round(hoursLeft)} hrs left in the course)`,
+      };
+    }
+    return {
+      atRisk: true,
+      message: `${Math.round(conducted)} of ${totalHours} hrs done — already ${Math.ceil(-remainingAllowed)} hrs over the limit; 75% isn't reachable even attending every remaining hour`,
+    };
+  }
+
+  /**
    * Standard 'attendance calculator' formula — works from present/total
    * alone, no need to know the semester's eventual total session count.
+   * Used as a fallback when a subject's total_hours isn't configured yet.
    * If at or above the requirement: how many more you can miss and stay
    * at/above it. If below: how many in a row you'd need to attend to
    * climb back up to it.
@@ -507,6 +574,16 @@
     }
     const needToAttend = Math.ceil((REQUIRED_ATTENDANCE * total - present) / (1 - REQUIRED_ATTENDANCE));
     return { atRisk: true, message: `Below ${Math.round(REQUIRED_ATTENDANCE * 100)}% — attend the next ${needToAttend} in a row to recover` };
+  }
+
+  /** Picks the hours-based calculation when total_hours is configured for
+   * this subject, otherwise falls back to the session-count version. */
+  function computeRisk(course, sessions, presentCount) {
+    if (course.total_hours) {
+      const { conducted, attended } = hoursSummary(sessions);
+      return attendanceRiskHours(attended, conducted, course.total_hours);
+    }
+    return attendanceRisk(presentCount, sessions.length);
   }
 
   function renderSubjectList() {
@@ -524,7 +601,7 @@
       const sessions = course.sessions || [];
       const presentCount = sessions.filter(s => /present/i.test(s.status)).length;
       const pct = sessions.length ? Math.round((presentCount / sessions.length) * 100) : 0;
-      const risk = attendanceRisk(presentCount, sessions.length);
+      const risk = computeRisk(course, sessions, presentCount);
 
       const row = document.createElement('div');
       row.className = 'subject-row';
