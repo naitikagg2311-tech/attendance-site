@@ -19,6 +19,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from bs4 import BeautifulSoup
 
 BASE_URL = "https://uglms.iimk.ac.in"
@@ -49,6 +51,11 @@ app = Flask(__name__)
 # Only allow requests from the actual frontend's origin — replace this
 # with your real GitHub Pages URL once you know it.
 CORS(app, origins=["https://naitikagg2311-tech.github.io"])
+
+# Per-IP throttling. /api/attendance forwards credentials to Moodle, so
+# without a limit here this endpoint could be scripted into a
+# brute-force/credential-stuffing proxy against IIMK's login system.
+limiter = Limiter(get_remote_address, app=app, default_limits=[])
 
 
 def moodle_login(username, password):
@@ -157,6 +164,7 @@ def match_course(course_map, fullname):
 
 
 @app.route("/api/attendance", methods=["POST"])
+@limiter.limit("5 per minute")
 def get_attendance():
     body = request.get_json(silent=True) or {}
     username = body.get("username")
@@ -164,20 +172,25 @@ def get_attendance():
     if not username or not password:
         return jsonify({"error": "Username and password required."}), 400
 
-    token = get_token(username, password)
-    if not token:
-        return jsonify({"error": "Login failed. Check your username and password."}), 401
+    try:
+        token = get_token(username, password)
+        if not token:
+            return jsonify({"error": "Login failed. Check your username and password."}), 401
 
-    session = moodle_login(username, password)
-    if session is None:
-        return jsonify({"error": "Login failed. Check your username and password."}), 401
+        session = moodle_login(username, password)
+        if session is None:
+            return jsonify({"error": "Login failed. Check your username and password."}), 401
 
-    # From here on, `username`/`password` are never referenced again —
-    # only `token` and `session` (already-authenticated) are used.
+        # From here on, `username`/`password` are never referenced again —
+        # only `token` and `session` (already-authenticated) are used.
 
-    course_map = load_course_map()
-    site_info = ws_call(token, "core_webservice_get_site_info")
-    courses = ws_call(token, "core_enrol_get_users_courses", userid=site_info["userid"])
+        course_map = load_course_map()
+        site_info = ws_call(token, "core_webservice_get_site_info")
+        if "userid" not in site_info:
+            return jsonify({"error": "Moodle didn't return a valid session. Try again."}), 502
+        courses = ws_call(token, "core_enrol_get_users_courses", userid=site_info["userid"])
+    except requests.exceptions.RequestException:
+        return jsonify({"error": "Couldn't reach the LMS right now. Try again shortly."}), 502
 
     def fetch_one_course(course):
         """Everything needed for one course, run in its own thread."""
@@ -362,6 +375,7 @@ def build_personal_schedule(section, language):
 
 
 @app.route("/api/schedule")
+@limiter.limit("30 per minute")
 def get_schedule():
     section = request.args.get("section", "A")
     language = request.args.get("language", "")
