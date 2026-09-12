@@ -178,7 +178,7 @@
 
   /* --- Schedule panel --- */
   .schedule-setup {
-    display: flex; gap: 18px; align-items: flex-end;
+    display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap;
     padding: 18px 20px; border: 1px solid var(--hairline); background: var(--panel);
     margin-bottom: 26px;
   }
@@ -329,6 +329,12 @@
           <option value="french">French</option>
           <option value="german">German</option>
           <option value="japanese">Japanese</option>
+        </select>
+      </div>
+      <div>
+        <label for="subject-filter">Show</label>
+        <select id="subject-filter">
+          <option value="">All subjects</option>
         </select>
       </div>
       <button id="schedule-refresh" style="width:auto;">Show my schedule</button>
@@ -483,6 +489,11 @@
   languageSelect.value = localStorage.getItem('bms_language') || 'spanish';
 
   document.getElementById('schedule-refresh').addEventListener('click', loadSchedule);
+  document.getElementById('subject-filter').addEventListener('change', () => {
+    if (latestScheduleData) renderSchedule(latestScheduleData);
+  });
+
+  let latestScheduleData = null;
 
   async function loadSchedule() {
     const section = sectionSelect.value;
@@ -498,10 +509,21 @@
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Could not load schedule.');
       contentEl.dataset.loaded = 'true';
+      latestScheduleData = data;
+      populateSubjectFilter(data);
       renderSchedule(data);
     } catch (err) {
       contentEl.innerHTML = `<div class="empty-state"><h3 class="serif">Couldn't load the schedule</h3>${err.message}</div>`;
     }
+  }
+
+  function populateSubjectFilter(data) {
+    const filterEl = document.getElementById('subject-filter');
+    const current = filterEl.value;
+    const subjects = [...new Set((data.all_sessions || []).map(s => s.subject))].sort();
+    filterEl.innerHTML = `<option value="">All subjects</option>` +
+      subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+    filterEl.value = subjects.includes(current) ? current : '';
   }
 
   // A calm, muted palette distinct from the present/absent/gold colors
@@ -530,9 +552,12 @@
   function renderSchedule(data) {
     const contentEl = document.getElementById('schedule-content');
     const { next_class, remaining_by_subject, all_sessions } = data;
+    const filterSubject = document.getElementById('subject-filter').value;
 
     let html = '';
 
+    // Next-class card and remaining counts always reflect the FULL
+    // schedule — the subject filter only narrows the list below.
     if (next_class) {
       const dt = next_class.datetime ? new Date(next_class.datetime) : null;
       const color = subjectColor(next_class.subject);
@@ -541,7 +566,7 @@
           <div>
             <div class="eyebrow">Next class</div>
             <h3 class="serif">${next_class.subject}</h3>
-            <div class="when">${next_class.day}, ${next_class.date.split(',')[1] || ''} · ${next_class.time}</div>
+            <div class="when">${next_class.day}, ${next_class.date_nice} · ${next_class.time_nice}</div>
           </div>
           ${dt ? `<div class="countdown">${formatCountdown(dt)}<span>from now</span></div>` : ''}
         </div>`;
@@ -563,7 +588,10 @@
     }
 
     const nowIso = new Date().toISOString();
-    const upcoming = (all_sessions || []).filter(s => s.datetime && s.datetime >= nowIso);
+    let upcoming = (all_sessions || []).filter(s => s.datetime && s.datetime >= nowIso);
+    if (filterSubject) {
+      upcoming = upcoming.filter(s => s.subject === filterSubject);
+    }
     const byDate = {};
     upcoming.forEach(s => {
       byDate[s.date] = byDate[s.date] || [];
@@ -571,13 +599,15 @@
     });
 
     if (upcoming.length) {
-      html += `<div class="schedule-section-title">Upcoming</div>`;
+      html += `<div class="schedule-section-title">${filterSubject ? filterSubject + ' — upcoming' : 'Upcoming'}</div>`;
+    } else if (filterSubject) {
+      html += `<div class="empty-state">No more upcoming sessions for ${filterSubject}.</div>`;
     }
-    Object.entries(byDate).slice(0, 10).forEach(([date, sessions]) => {
-      html += `<div class="day-group"><h4>${date}</h4><div class="timeline">`;
+    Object.entries(byDate).slice(0, 14).forEach(([date, sessions]) => {
+      html += `<div class="day-group"><h4>${sessions[0].date_nice}</h4><div class="timeline">`;
       sessions.forEach(s => {
         html += `<div class="day-row" style="--dot-color:${subjectColor(s.subject)}">
-          <span class="time-label">${s.time}</span>
+          <span class="time-label">${s.time_nice}</span>
           <span class="subject-label">${s.subject}</span>
         </div>`;
       });
