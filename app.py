@@ -208,6 +208,7 @@ def get_attendance():
                     "course_name": course.get("fullname", ""),
                     "display_name": mapped.get("display_name", course.get("fullname", "")),
                     "semester": mapped.get("semester"),
+                    "total_hours": mapped.get("total_hours"),
                     "sessions": parse_attendance_table(resp.text),
                 })
         return entries
