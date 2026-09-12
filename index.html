@@ -31,19 +31,41 @@
   header.masthead {
     background: var(--ink-strong);
     color: var(--paper);
-    padding: 22px 28px;
+    padding: 18px 28px;
     display: flex;
     align-items: baseline;
     gap: 14px;
     border-bottom: 3px solid var(--gold);
   }
-  header.masthead h1 { font-size: 1.3rem; font-weight: 600; margin: 0; letter-spacing: 0.2px; }
+  header.masthead h1 { font-size: 1.25rem; font-weight: 600; margin: 0; letter-spacing: 0.2px; }
   header.masthead span.sub { font-size: 0.85rem; color: #C9C2AE; }
 
-  main { max-width: 880px; margin: 0 auto; padding: 32px 24px 80px; }
+  main { max-width: 880px; margin: 0 auto; padding: 0 24px 80px; }
 
-  /* --- Login --- */
-  #login-view { display: flex; justify-content: center; padding-top: 60px; }
+  /* --- Login / hero --- */
+  #login-view { display: block; }
+  .hero {
+    position: relative;
+    height: 34vh;
+    min-height: 220px;
+    background: #0d1526;
+    overflow: hidden;
+  }
+  .hero img {
+    width: 100%; height: 100%; object-fit: cover;
+    opacity: 0.75;
+  }
+  .hero::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(13,21,38,0.15) 0%, var(--paper) 96%);
+  }
+  .hero-credit {
+    position: absolute; bottom: 8px; right: 14px;
+    font-size: 0.68rem; color: rgba(255,255,255,0.7);
+    z-index: 2;
+  }
+  .login-wrap { display: flex; justify-content: center; margin-top: -70px; position: relative; z-index: 2; }
   .login-card {
     background: var(--panel);
     border: 1px solid var(--hairline);
@@ -54,7 +76,7 @@
   .login-card h2 { font-size: 1.4rem; margin: 0 0 6px; }
   .login-card p.hint { color: var(--muted); font-size: 0.88rem; margin: 0 0 22px; line-height: 1.5; }
   label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 5px; }
-  input {
+  input, select {
     width: 100%;
     padding: 9px 10px;
     border: 1px solid var(--hairline);
@@ -63,10 +85,9 @@
     font-size: 0.95rem;
     margin-bottom: 16px;
   }
-  input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  input:focus, select:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
   button {
-    width: 100%;
-    padding: 11px;
+    padding: 11px 16px;
     background: var(--ink-strong);
     color: var(--paper);
     border: none;
@@ -74,6 +95,7 @@
     font-size: 0.95rem;
     cursor: pointer;
   }
+  .login-card button { width: 100%; }
   button:hover { background: var(--ink); }
   button:disabled { opacity: 0.6; cursor: default; }
   .error-msg { color: var(--absent); font-size: 0.85rem; margin-top: 12px; }
@@ -87,7 +109,24 @@
   }
 
   /* --- Dashboard --- */
-  #dashboard-view { display: none; }
+  #dashboard-view { display: none; padding-top: 24px; }
+
+  nav.main-tabs {
+    display: flex;
+    gap: 26px;
+    margin-bottom: 20px;
+  }
+  nav.main-tabs button {
+    all: unset;
+    cursor: pointer;
+    padding: 6px 0;
+    font-family: 'Source Serif 4', serif;
+    font-size: 1.15rem;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+  }
+  nav.main-tabs button.active { color: var(--ink-strong); border-bottom-color: var(--gold); }
+
   nav.tabs {
     display: flex;
     gap: 22px;
@@ -134,42 +173,121 @@
 
   .empty-state { padding: 40px 10px; color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
   .empty-state h3 { color: var(--ink); margin-bottom: 8px; }
+
+  /* --- Schedule panel --- */
+  .schedule-setup {
+    display: flex; gap: 14px; align-items: flex-end;
+    padding: 16px; border: 1px solid var(--hairline); background: var(--panel);
+    margin-bottom: 22px;
+  }
+  .schedule-setup > div { flex: 1; }
+  .schedule-setup label { margin-bottom: 4px; }
+  .schedule-setup select { margin-bottom: 0; }
+
+  .next-class-card {
+    border-left: 3px solid var(--gold);
+    background: var(--panel);
+    padding: 20px 22px;
+    margin-bottom: 26px;
+  }
+  .next-class-card .eyebrow { font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+  .next-class-card h3 { margin: 0 0 4px; font-size: 1.3rem; }
+  .next-class-card .when { font-size: 0.9rem; color: var(--muted); }
+
+  .remaining-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px 20px;
+    margin-bottom: 30px;
+  }
+  .remaining-item {
+    display: flex; justify-content: space-between;
+    border-bottom: 1px dotted var(--hairline);
+    padding: 6px 0;
+    font-size: 0.88rem;
+  }
+  .remaining-item .count { color: var(--gold); font-weight: 600; }
+
+  .day-group { margin-bottom: 22px; }
+  .day-group h4 { font-size: 0.9rem; color: var(--muted); font-weight: 500; margin: 0 0 8px; text-transform: none; }
+  .day-row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 0.9rem;
+    border-top: 1px dotted var(--hairline);
+  }
+  .day-row:first-of-type { border-top: none; }
 </style>
 </head>
 <body>
 
 <header class="masthead">
   <h1>UG LMS Register</h1>
-  <span class="sub">Bachelor of Management Studies · Attendance</span>
+  <span class="sub">Bachelor of Management Studies · Attendance &amp; Schedule</span>
 </header>
 
-<main>
-
-  <div id="login-view">
-    <div class="login-card">
-      <h2 class="serif">Log in</h2>
-      <p class="hint">Use your LMS username and password. Nothing you type here is saved anywhere.</p>
-      <form id="login-form">
-        <label for="username">Username</label>
-        <input type="text" id="username" autocomplete="username" required>
-        <label for="password">Password</label>
-        <input type="password" id="password" autocomplete="current-password" required>
-        <button type="submit" id="login-btn">View my attendance</button>
-      </form>
-      <div class="error-msg" id="error-msg" style="display:none;"></div>
-      <div class="privacy-note">
-        Your credentials are sent once to fetch your attendance, then discarded immediately —
-        they're never written to a database, a file, or a log. This page can't see anyone
-        else's login, and no one else can see yours.
+<div id="login-view">
+  <div class="hero">
+    <img src="https://commons.wikimedia.org/wiki/Special:FilePath/IIM%20Kozhikode%20Aerial%20View%20s.jpg" alt="IIM Kozhikode campus">
+    <span class="hero-credit">IIM Kozhikode campus · Wikimedia Commons</span>
+  </div>
+  <main>
+    <div class="login-wrap">
+      <div class="login-card">
+        <h2 class="serif">Log in</h2>
+        <p class="hint">Use your LMS username and password. Nothing you type here is saved anywhere.</p>
+        <form id="login-form">
+          <label for="username">Username</label>
+          <input type="text" id="username" autocomplete="username" required>
+          <label for="password">Password</label>
+          <input type="password" id="password" autocomplete="current-password" required>
+          <button type="submit" id="login-btn">View my attendance</button>
+        </form>
+        <div class="error-msg" id="error-msg" style="display:none;"></div>
+        <div class="privacy-note">
+          Your credentials are sent once to fetch your attendance, then discarded immediately —
+          they're never written to a database, a file, or a log. This page can't see anyone
+          else's login, and no one else can see yours.
+        </div>
       </div>
     </div>
-  </div>
+  </main>
+</div>
 
-  <div id="dashboard-view">
+<main id="dashboard-view">
+  <nav class="main-tabs" id="main-tabs">
+    <button class="active" data-panel="register">Register</button>
+    <button data-panel="schedule">Schedule</button>
+  </nav>
+
+  <div id="register-panel">
     <nav class="tabs" id="semester-tabs"></nav>
     <div id="subject-list"></div>
   </div>
 
+  <div id="schedule-panel" style="display:none;">
+    <div class="schedule-setup">
+      <div>
+        <label for="section-select">Section</label>
+        <select id="section-select">
+          <option value="A">Section A</option>
+          <option value="B">Section B</option>
+        </select>
+      </div>
+      <div>
+        <label for="language-select">Foreign language</label>
+        <select id="language-select">
+          <option value="spanish">Spanish</option>
+          <option value="french">French</option>
+          <option value="german">German</option>
+          <option value="japanese">Japanese</option>
+        </select>
+      </div>
+      <button id="schedule-refresh" style="width:auto;">Show my schedule</button>
+    </div>
+    <div id="schedule-content"></div>
+  </div>
 </main>
 
 <script>
@@ -207,7 +325,6 @@
       }
 
       allCourses = data.courses || [];
-      // Immediately clear the password field's value from memory.
       document.getElementById('password').value = '';
 
       renderDashboard();
@@ -222,6 +339,20 @@
     }
   });
 
+  // --- Main tab switching (Register / Schedule) ---
+  document.getElementById('main-tabs').addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') return;
+    const panel = e.target.dataset.panel;
+    document.querySelectorAll('#main-tabs button').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    document.getElementById('register-panel').style.display = panel === 'register' ? 'block' : 'none';
+    document.getElementById('schedule-panel').style.display = panel === 'schedule' ? 'block' : 'none';
+    if (panel === 'schedule' && !document.getElementById('schedule-content').dataset.loaded) {
+      loadSchedule();
+    }
+  });
+
+  // --- Register (attendance) rendering ---
   function renderDashboard() {
     const semesters = [...new Set(allCourses.map(c => c.semester ?? 'Unclassified'))]
       .sort((a, b) => (a === 'Unclassified' ? 1 : b === 'Unclassified' ? -1 : a - b));
@@ -292,6 +423,81 @@
     if (/present/i.test(status)) return 'status-present';
     if (/absent/i.test(status)) return 'status-absent';
     return 'status-other';
+  }
+
+  // --- Schedule rendering ---
+  const sectionSelect = document.getElementById('section-select');
+  const languageSelect = document.getElementById('language-select');
+
+  // Remember the student's section/language choice locally so they don't
+  // re-pick it every visit. Not sensitive — no credentials involved.
+  sectionSelect.value = localStorage.getItem('bms_section') || 'A';
+  languageSelect.value = localStorage.getItem('bms_language') || 'spanish';
+
+  document.getElementById('schedule-refresh').addEventListener('click', loadSchedule);
+
+  async function loadSchedule() {
+    const section = sectionSelect.value;
+    const language = languageSelect.value;
+    localStorage.setItem('bms_section', section);
+    localStorage.setItem('bms_language', language);
+
+    const contentEl = document.getElementById('schedule-content');
+    contentEl.innerHTML = `<div class="empty-state">Loading schedule...</div>`;
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/schedule?section=${section}&language=${language}`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Could not load schedule.');
+      contentEl.dataset.loaded = 'true';
+      renderSchedule(data);
+    } catch (err) {
+      contentEl.innerHTML = `<div class="empty-state"><h3 class="serif">Couldn't load the schedule</h3>${err.message}</div>`;
+    }
+  }
+
+  function renderSchedule(data) {
+    const contentEl = document.getElementById('schedule-content');
+    const { next_class, remaining_by_subject, all_sessions } = data;
+
+    let html = '';
+
+    if (next_class) {
+      html += `
+        <div class="next-class-card">
+          <div class="eyebrow">Next class</div>
+          <h3 class="serif">${next_class.subject}</h3>
+          <div class="when">${next_class.day}, ${next_class.date.split(',')[1] || ''} · ${next_class.time}</div>
+        </div>`;
+    } else {
+      html += `<div class="empty-state">No upcoming classes found in the schedule.</div>`;
+    }
+
+    const subjects = Object.entries(remaining_by_subject || {});
+    if (subjects.length) {
+      html += `<div class="remaining-grid">`;
+      subjects.forEach(([name, count]) => {
+        html += `<div class="remaining-item"><span>${name}</span><span class="count">${count} left</span></div>`;
+      });
+      html += `</div>`;
+    }
+
+    const upcoming = (all_sessions || []).filter(s => s.datetime && s.datetime >= new Date().toISOString());
+    const byDate = {};
+    upcoming.forEach(s => {
+      byDate[s.date] = byDate[s.date] || [];
+      byDate[s.date].push(s);
+    });
+
+    Object.entries(byDate).slice(0, 10).forEach(([date, sessions]) => {
+      html += `<div class="day-group"><h4>${date}</h4>`;
+      sessions.forEach(s => {
+        html += `<div class="day-row"><span>${s.time}</span><span>${s.subject}</span></div>`;
+      });
+      html += `</div>`;
+    });
+
+    contentEl.innerHTML = html;
   }
 </script>
 
