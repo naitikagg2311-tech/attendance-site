@@ -160,12 +160,14 @@
   .subject-row.expanded .session-list { display: block; }
   .session-row {
     display: grid;
-    grid-template-columns: 130px 1fr 90px 70px;
+    grid-template-columns: 120px 90px 1fr 90px 70px;
     gap: 10px;
     padding: 6px 0;
     font-size: 0.85rem;
     border-top: 1px dotted var(--hairline);
+    align-items: baseline;
   }
+  .session-row .time { color: var(--muted); font-size: 0.8rem; }
   .session-row:first-child { border-top: none; }
   .status-present { color: var(--present); }
   .status-absent { color: var(--absent); }
@@ -176,48 +178,93 @@
 
   /* --- Schedule panel --- */
   .schedule-setup {
-    display: flex; gap: 14px; align-items: flex-end;
-    padding: 16px; border: 1px solid var(--hairline); background: var(--panel);
-    margin-bottom: 22px;
-  }
-  .schedule-setup > div { flex: 1; }
-  .schedule-setup label { margin-bottom: 4px; }
-  .schedule-setup select { margin-bottom: 0; }
-
-  .next-class-card {
-    border-left: 3px solid var(--gold);
-    background: var(--panel);
-    padding: 20px 22px;
+    display: flex; gap: 18px; align-items: flex-end;
+    padding: 18px 20px; border: 1px solid var(--hairline); background: var(--panel);
     margin-bottom: 26px;
   }
-  .next-class-card .eyebrow { font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
-  .next-class-card h3 { margin: 0 0 4px; font-size: 1.3rem; }
+  .schedule-setup > div { flex: 1; }
+  .schedule-setup label { margin-bottom: 5px; }
+  .select-wrap { position: relative; }
+  .select-wrap::after {
+    content: "▾"; position: absolute; right: 12px; top: 9px;
+    color: var(--muted); font-size: 0.75rem; pointer-events: none;
+  }
+  .schedule-setup select {
+    margin-bottom: 0; appearance: none; -webkit-appearance: none;
+    cursor: pointer; padding-right: 28px;
+  }
+  .schedule-setup button {
+    width: auto; padding: 10px 20px; align-self: stretch;
+  }
+
+  .next-class-card {
+    border: 1px solid var(--hairline);
+    border-left: 4px solid var(--gold);
+    background: var(--panel);
+    padding: 24px 26px;
+    margin-bottom: 30px;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+  }
+  .next-class-card .eyebrow {
+    font-size: 0.72rem; letter-spacing: 0.06em; color: var(--gold);
+    text-transform: uppercase; margin-bottom: 6px; font-weight: 600;
+  }
+  .next-class-card h3 { margin: 0 0 4px; font-size: 1.5rem; }
   .next-class-card .when { font-size: 0.9rem; color: var(--muted); }
+  .next-class-card .countdown {
+    font-family: 'Source Serif 4', serif; font-size: 1.6rem; color: var(--ink-strong);
+    text-align: right;
+  }
+  .next-class-card .countdown span { display: block; font-family: 'Inter', sans-serif; font-size: 0.72rem; color: var(--muted); font-weight: 500; }
 
   .remaining-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 10px 20px;
-    margin-bottom: 30px;
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-bottom: 34px;
   }
   .remaining-item {
-    display: flex; justify-content: space-between;
-    border-bottom: 1px dotted var(--hairline);
-    padding: 6px 0;
-    font-size: 0.88rem;
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--hairline);
+    background: var(--panel);
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    border-radius: 3px;
   }
-  .remaining-item .count { color: var(--gold); font-weight: 600; }
+  .remaining-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .remaining-item .count { color: var(--muted); }
+  .remaining-item .count b { color: var(--ink-strong); }
 
-  .day-group { margin-bottom: 22px; }
-  .day-group h4 { font-size: 0.9rem; color: var(--muted); font-weight: 500; margin: 0 0 8px; text-transform: none; }
-  .day-row {
-    display: grid;
-    grid-template-columns: 110px 1fr;
-    gap: 10px;
-    padding: 5px 0;
-    font-size: 0.9rem;
-    border-top: 1px dotted var(--hairline);
+  .schedule-section-title {
+    font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 14px; font-weight: 600;
   }
-  .day-row:first-of-type { border-top: none; }
+
+  .day-group { margin-bottom: 28px; }
+  .day-group h4 {
+    font-family: 'Source Serif 4', serif; font-weight: 600;
+    font-size: 1.05rem; color: var(--ink-strong); margin: 0 0 12px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--hairline);
+  }
+  .timeline { position: relative; padding-left: 22px; }
+  .timeline::before {
+    content: ""; position: absolute; left: 4px; top: 6px; bottom: 6px;
+    width: 1px; background: var(--hairline);
+  }
+  .day-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 12px;
+    padding: 9px 0;
+    font-size: 0.9rem;
+  }
+  .day-row::before {
+    content: ""; position: absolute; left: -22px; top: 14px;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--dot-color, var(--gold));
+    border: 2px solid var(--paper);
+  }
+  .day-row .time-label { color: var(--muted); font-size: 0.85rem; }
+  .day-row .subject-label { display: flex; align-items: center; gap: 8px; font-weight: 500; }
 </style>
 </head>
 <body>
@@ -407,6 +454,7 @@
             : sessions.map(s => `
               <div class="session-row">
                 <span>${s.date}</span>
+                <span class="time">${s.time || ''}</span>
                 <span>${s.session}</span>
                 <span class="${statusClass(s.status)}">${s.status}</span>
                 <span>${s.points}</span>
@@ -456,6 +504,29 @@
     }
   }
 
+  // A calm, muted palette distinct from the present/absent/gold colors
+  // used elsewhere, so subjects read as categories, not statuses.
+  const SUBJECT_PALETTE = ['#5B7DB1', '#8B5E83', '#B1793F', '#4F8C82', '#9C6B4A', '#6B6EAF'];
+  const subjectColorCache = {};
+  function subjectColor(name) {
+    if (!subjectColorCache[name]) {
+      const hash = [...name].reduce((a, c) => a + c.charCodeAt(0), 0);
+      subjectColorCache[name] = SUBJECT_PALETTE[hash % SUBJECT_PALETTE.length];
+    }
+    return subjectColorCache[name];
+  }
+
+  function formatCountdown(dt) {
+    const diffMs = dt - new Date();
+    if (diffMs < 0) return 'Now';
+    const mins = Math.round(diffMs / 60000);
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    if (hours < 24) return `${hours}h ${remMins}m`;
+    return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+  }
+
   function renderSchedule(data) {
     const contentEl = document.getElementById('schedule-content');
     const { next_class, remaining_by_subject, all_sessions } = data;
@@ -463,11 +534,16 @@
     let html = '';
 
     if (next_class) {
+      const dt = next_class.datetime ? new Date(next_class.datetime) : null;
+      const color = subjectColor(next_class.subject);
       html += `
-        <div class="next-class-card">
-          <div class="eyebrow">Next class</div>
-          <h3 class="serif">${next_class.subject}</h3>
-          <div class="when">${next_class.day}, ${next_class.date.split(',')[1] || ''} · ${next_class.time}</div>
+        <div class="next-class-card" style="border-left-color:${color}">
+          <div>
+            <div class="eyebrow">Next class</div>
+            <h3 class="serif">${next_class.subject}</h3>
+            <div class="when">${next_class.day}, ${next_class.date.split(',')[1] || ''} · ${next_class.time}</div>
+          </div>
+          ${dt ? `<div class="countdown">${formatCountdown(dt)}<span>from now</span></div>` : ''}
         </div>`;
     } else {
       html += `<div class="empty-state">No upcoming classes found in the schedule.</div>`;
@@ -475,26 +551,37 @@
 
     const subjects = Object.entries(remaining_by_subject || {});
     if (subjects.length) {
-      html += `<div class="remaining-grid">`;
+      html += `<div class="schedule-section-title">Sessions remaining</div><div class="remaining-grid">`;
       subjects.forEach(([name, count]) => {
-        html += `<div class="remaining-item"><span>${name}</span><span class="count">${count} left</span></div>`;
+        html += `<div class="remaining-item">
+          <span class="dot" style="background:${subjectColor(name)}"></span>
+          <span>${name}</span>
+          <span class="count"><b>${count}</b> left</span>
+        </div>`;
       });
       html += `</div>`;
     }
 
-    const upcoming = (all_sessions || []).filter(s => s.datetime && s.datetime >= new Date().toISOString());
+    const nowIso = new Date().toISOString();
+    const upcoming = (all_sessions || []).filter(s => s.datetime && s.datetime >= nowIso);
     const byDate = {};
     upcoming.forEach(s => {
       byDate[s.date] = byDate[s.date] || [];
       byDate[s.date].push(s);
     });
 
+    if (upcoming.length) {
+      html += `<div class="schedule-section-title">Upcoming</div>`;
+    }
     Object.entries(byDate).slice(0, 10).forEach(([date, sessions]) => {
-      html += `<div class="day-group"><h4>${date}</h4>`;
+      html += `<div class="day-group"><h4>${date}</h4><div class="timeline">`;
       sessions.forEach(s => {
-        html += `<div class="day-row"><span>${s.time}</span><span>${s.subject}</span></div>`;
+        html += `<div class="day-row" style="--dot-color:${subjectColor(s.subject)}">
+          <span class="time-label">${s.time}</span>
+          <span class="subject-label">${s.subject}</span>
+        </div>`;
       });
-      html += `</div>`;
+      html += `</div></div>`;
     });
 
     contentEl.innerHTML = html;
