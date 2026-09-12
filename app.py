@@ -22,7 +22,7 @@ BASE_URL = "https://uglms.iimk.ac.in"
 app = Flask(__name__)
 # Only allow requests from the actual frontend's origin — replace this
 # with your real GitHub Pages URL once you know it.
-CORS(app, origins=["https://naitikagg2311-tech.github.io"])
+CORS(app, origins=["https://YOUR-GITHUB-USERNAME.github.io"])
 
 
 def moodle_login(username, password):
@@ -90,12 +90,13 @@ def parse_attendance_table(html):
 
 
 def load_course_map():
+    """course_name -> {"semester": int, "display_name": str}"""
     path = os.path.join(os.path.dirname(__file__), "course_map.json")
     if not os.path.exists(path):
         return {}
     with open(path) as f:
         entries = json.load(f)
-    return {e["course_id"]: e for e in entries}
+    return {e["course_name"]: e for e in entries}
 
 
 @app.route("/api/attendance", methods=["POST"])
@@ -124,7 +125,7 @@ def get_attendance():
     result = []
     for course in courses:
         contents = ws_call(token, "core_course_get_contents", courseid=course["id"])
-        mapped = course_map.get(course["id"], {})
+        mapped = course_map.get(course.get("fullname", ""), {})
         for section in contents:
             for module in section.get("modules", []):
                 if module.get("modname") != "attendance":
