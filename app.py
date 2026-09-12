@@ -125,11 +125,13 @@ def parse_attendance_table(html):
 
 
 def _normalize(name):
-    """Lowercase, collapse whitespace/dashes/punctuation — so 'Sec A' vs
-    'Section A', extra spaces, or different dash characters don't cause
-    a real match to be missed."""
+    """Lowercase, collapse whitespace/dashes/punctuation, and drop the
+    section/batch letter entirely — 'Section A' vs 'Section B' vs
+    'Batch A' must never be the reason two names fail to match, since
+    the same shared site serves students in different sections."""
     name = name.lower()
     name = re.sub(r"[-–—_,./]", " ", name)
+    name = re.sub(r"\b(section|sec|batch)\s+[a-z]\b", " ", name)
     name = re.sub(r"\s+", " ", name).strip()
     return name
 
