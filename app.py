@@ -178,7 +178,7 @@ def get_attendance():
                 if module.get("modname") != "attendance":
                     continue
                 resp = session.get(f"{BASE_URL}/mod/attendance/view.php",
-                                    params={"id": module["id"]}, timeout=15)
+                                    params={"id": module["id"], "view": 5}, timeout=15)
                 entries.append({
                     "course_id": course["id"],
                     "course_name": course.get("fullname", ""),
