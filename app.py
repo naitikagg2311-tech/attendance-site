@@ -217,21 +217,23 @@ def health():
 
 def parse_code(raw):
     """
-    'MO-25 (AR)' -> ('MO', 'Mathematical Optimization', '25 (AR)')
-    'CP 11'      -> ('CP', 'Community Project', '11')
+    'MO-25 (AR)' -> ('MO', 'Mathematical Optimization', '25 (AR)', True)
+    'CP 11'      -> ('CP', 'Community Project', '11', True)
+    'DEEPAWALI'  -> ('DEEPAWALI', 'DEEPAWALI', '', False)  — not a real subject
     Checks against known codes explicitly (handles space, hyphen, or no
     separator at all) rather than assuming one fixed format — the sheet
     isn't consistent about which separator it uses per subject.
-    Anything that isn't a known code (e.g. 'Community Project' spelled
-    out, 'Buffer/Quiz') is returned as-is, unparsed.
+    Anything that isn't a known code (holidays, exam periods, admin
+    sessions like POSH/Anti-Ragging, 'Buffer/Quiz') is returned as-is,
+    flagged as not a real academic subject.
     """
     raw = raw.strip()
     upper = raw.upper()
     for code, name in SUBJECT_CODES.items():
         if upper == code or upper.startswith(code + " ") or upper.startswith(code + "-"):
             rest = raw[len(code):].strip(" -")
-            return code, name, rest
-    return raw, raw, ""
+            return code, name, rest, True
+    return raw, raw, "", False
 
 
 def ordinal(n):
@@ -331,10 +333,10 @@ def build_personal_schedule(section, language):
             if col == language_col:
                 # We already know which language this is from context —
                 # no need to re-parse the "FLC (F)-11" style code.
-                prefix, session_no = "FLC", raw.split("-")[-1].strip()
+                prefix, session_no, is_subject = "FLC", raw.split("-")[-1].strip(), True
                 name = f"Foreign Language ({language.capitalize()})"
             else:
-                prefix, name, session_no = parse_code(raw)
+                prefix, name, session_no, is_subject = parse_code(raw)
             try:
                 start_time = time_str.split("-")[0].strip()
                 dt = datetime.strptime(f"{date_str} {start_time}", "%A, %d %B, %Y %H:%M")
@@ -349,6 +351,7 @@ def build_personal_schedule(section, language):
                 "code": raw,
                 "subject": name,
                 "session_no": session_no,
+                "is_subject": is_subject,
                 "datetime": dt.isoformat() if dt else None,
             })
 
@@ -371,6 +374,8 @@ def get_schedule():
 
     remaining_by_subject = {}
     for s in upcoming:
+        if not s["is_subject"]:
+            continue
         remaining_by_subject[s["subject"]] = remaining_by_subject.get(s["subject"], 0) + 1
 
     return jsonify({
