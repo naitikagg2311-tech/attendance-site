@@ -2,141 +2,169 @@
   {
     "course_name": "Organisational Behaviour - Batch A",
     "semester": 3,
-    "display_name": "Organisational Behaviour"
+    "display_name": "Organisational Behaviour",
+    "total_hours": 60
   },
   {
     "course_name": "Introduction to Law - Batch A",
     "semester": 3,
-    "display_name": "Introduction to Law"
+    "display_name": "Introduction to Law",
+    "total_hours": 60
   },
   {
     "course_name": "Community Project - Batch A",
     "semester": 3,
-    "display_name": "Community Project"
+    "display_name": "Community Project",
+    "total_hours": 30
   },
   {
     "course_name": "World and Indian History - Batch A",
     "semester": 3,
-    "display_name": "World and Indian History"
+    "display_name": "World and Indian History",
+    "total_hours": 60
   },
   {
     "course_name": "Mathematical Optimization - Batch A",
     "semester": 3,
-    "display_name": "Mathematical Optimization"
+    "display_name": "Mathematical Optimization",
+    "total_hours": 60
   },
   {
     "course_name": "Algorithmic Thinking and the Art of Programming - Batch A",
     "semester": 3,
-    "display_name": "Algorithmic Thinking and Programming"
+    "display_name": "Algorithmic Thinking and Programming",
+    "total_hours": 60
   },
   {
     "course_name": "Foreign Language and Culture - Japanese",
     "semester": 3,
-    "display_name": "Foreign Language and Culture (Japanese)"
+    "display_name": "Foreign Language and Culture (Japanese)",
+    "total_hours": 30
   },
   {
     "course_name": "Foreign Language and Culture - German",
     "semester": 3,
-    "display_name": "Foreign Language and Culture (German)"
+    "display_name": "Foreign Language and Culture (German)",
+    "total_hours": 30
   },
   {
     "course_name": "Functional language - Sanskrit",
     "semester": 2,
-    "display_name": "Functional Language (Sanskrit)"
+    "display_name": "Functional Language (Sanskrit)",
+    "total_hours": 30
   },
   {
     "course_name": "Function Language - Malayalam",
     "semester": 2,
-    "display_name": "Functional Language (Malayalam)"
+    "display_name": "Functional Language (Malayalam)",
+    "total_hours": 30
   },
   {
     "course_name": "Management Accounting Section A",
     "semester": 2,
-    "display_name": "Management Accounting"
+    "display_name": "Management Accounting",
+    "total_hours": 60
   },
   {
     "course_name": "Creating and Managing Customer Section A",
     "semester": 2,
-    "display_name": "Creating and Managing Customer Value"
+    "display_name": "Creating and Managing Customer Value",
+    "total_hours": 60
   },
   {
     "course_name": "The Art of Mathematics Section A",
     "semester": 2,
-    "display_name": "The Art of Mathematics"
+    "display_name": "The Art of Mathematics",
+    "total_hours": 60
   },
   {
     "course_name": "Brain, Mind and Consciousness Section A",
     "semester": 2,
-    "display_name": "Brain, Mind and Consciousness"
+    "display_name": "Brain, Mind and Consciousness",
+    "total_hours": 60
   },
   {
     "course_name": "Computation and Artificial Intelligence Section A",
     "semester": 2,
-    "display_name": "Computation and AI"
+    "display_name": "Computation and AI",
+    "total_hours": 60
   },
   {
     "course_name": "Yoga, Mindfulness and Meditation - Batch A",
     "semester": 2,
-    "display_name": "Yoga, Mindfulness and Meditation"
+    "display_name": "Yoga, Mindfulness and Meditation",
+    "total_hours": 30
   },
   {
     "course_name": "Foreign Language - Spanish - Batch A",
     "semester": 2,
-    "display_name": "Foreign Language (Spanish)"
+    "display_name": "Foreign Language (Spanish)",
+    "total_hours": 30
   },
   {
     "course_name": "Foreign Language - French - Batch A",
     "semester": 2,
-    "display_name": "Foreign Language (French)"
+    "display_name": "Foreign Language (French)",
+    "total_hours": 30
   },
   {
     "course_name": "Foreign Language - Japanese - Batch A",
     "semester": 2,
-    "display_name": "Foreign Language (Japanese)"
+    "display_name": "Foreign Language (Japanese)",
+    "total_hours": 30
   },
   {
     "course_name": "Foreign Language - German - Batch A",
     "semester": 2,
-    "display_name": "Foreign Language (German)"
+    "display_name": "Foreign Language (German)",
+    "total_hours": 30
   },
   {
     "course_name": "Workshop and External Programs SEC B",
     "semester": 2,
-    "display_name": "Workshop and External Programs"
+    "display_name": "Workshop and External Programs",
+    "total_hours": 60
   },
   {
     "course_name": "Yoga Asana and Pranayama (Section B)",
     "semester": 1,
-    "display_name": "Yoga Asana and Pranayama"
+    "display_name": "Yoga Asana and Pranayama",
+    "total_hours": 30
   },
   {
     "course_name": "Sociology and Anthropology (Section B)",
     "semester": 1,
-    "display_name": "Sociology and Anthropology"
+    "display_name": "Sociology and Anthropology",
+    "total_hours": 60
   },
   {
     "course_name": "Computing in Practice (Section B)",
     "semester": 1,
-    "display_name": "Computing in Practice"
+    "display_name": "Computing in Practice",
+    "total_hours": 30
   },
   {
     "course_name": "Introduction to Accounting and Finance (Section B)",
     "semester": 1,
-    "display_name": "Introduction to Accounting and Finance"
+    "display_name": "Introduction to Accounting and Finance",
+    "total_hours": 60
   },
   {
     "course_name": "Fundamentals of Economic Analysis (Section B)",
     "semester": 1,
-    "display_name": "Fundamentals of Economic Analysis"
+    "display_name": "Fundamentals of Economic Analysis",
+    "total_hours": 60
   },
   {
     "course_name": "Poetry and Literature (Section B)",
     "semester": 1,
-    "display_name": "Poetry and Literature"
+    "display_name": "Poetry and Literature",
+    "total_hours": 60
   },
   {
     "course_name": "BMS01, Business and Management (Section B)",
     "semester": 1,
-    "display_name": "Business and Management"
+    "display_name": "Business and Management",
+    "total_hours": 60
   }
 ]
