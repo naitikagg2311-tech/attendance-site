@@ -1,32 +1,142 @@
 [
-  { "course_name": "Organisational Behaviour - Batch A", "semester": 3, "display_name": "Organisational Behaviour" },
-  { "course_name": "Introduction to Law - Batch A", "semester": 3, "display_name": "Introduction to Law" },
-  { "course_name": "Community Project - Batch A", "semester": 3, "display_name": "Community Project" },
-  { "course_name": "World and Indian History - Batch A", "semester": 3, "display_name": "World and Indian History" },
-  { "course_name": "Mathematical Optimization - Batch A", "semester": 3, "display_name": "Mathematical Optimization" },
-  { "course_name": "Algorithmic Thinking and the Art of Programming - Batch A", "semester": 3, "display_name": "Algorithmic Thinking and Programming" },
-  { "course_name": "Foreign Language and Culture - Japanese", "semester": 3, "display_name": "Foreign Language and Culture" },
-  { "course_name": "Foreign Language and Culture - German", "semester": 3, "display_name": "Foreign Language and Culture" },
-  { "course_name": "Functional language - Sanskrit", "semester": 3, "display_name": "Foreign Language and Culture" },
-  { "course_name": "Function Language - Malayalam", "semester": 3, "display_name": "Foreign Language and Culture" },
-
-  { "course_name": "Management Accounting Section A", "semester": 2, "display_name": "Management Accounting" },
-  { "course_name": "Creating and Managing Customer Section A", "semester": 2, "display_name": "Creating and Managing Customer Value" },
-  { "course_name": "The Art of Mathematics Section A", "semester": 2, "display_name": "The Art of Mathematics" },
-  { "course_name": "Brain, Mind and Consciousness Section A", "semester": 2, "display_name": "Brain, Mind and Consciousness" },
-  { "course_name": "Computation and Artificial Intelligence Section A", "semester": 2, "display_name": "Computation and AI" },
-  { "course_name": "Yoga, Mindfulness and Meditation - Batch A", "semester": 2, "display_name": "Yoga, Mindfulness and Meditation" },
-  { "course_name": "Foreign Language - Spanish - Batch A", "semester": 2, "display_name": "Foreign Language" },
-  { "course_name": "Foreign Language - French - Batch A", "semester": 2, "display_name": "Foreign Language" },
-  { "course_name": "Foreign Language - Japanese - Batch A", "semester": 2, "display_name": "Foreign Language" },
-  { "course_name": "Foreign Language - German - Batch A", "semester": 2, "display_name": "Foreign Language" },
-  { "course_name": "Workshop and External Programs SEC B", "semester": 2, "display_name": "Workshop and External Programs" },
-
-  { "course_name": "Yoga Asana and Pranayama (Section B)", "semester": 1, "display_name": "Yoga Asana and Pranayama" },
-  { "course_name": "Sociology and Anthropology (Section B)", "semester": 1, "display_name": "Sociology and Anthropology" },
-  { "course_name": "Computing in Practice (Section B)", "semester": 1, "display_name": "Computing in Practice" },
-  { "course_name": "Introduction to Accounting and Finance (Section B)", "semester": 1, "display_name": "Introduction to Accounting and Finance" },
-  { "course_name": "Fundamentals of Economic Analysis (Section B)", "semester": 1, "display_name": "Fundamentals of Economic Analysis" },
-  { "course_name": "Poetry and Literature (Section B)", "semester": 1, "display_name": "Poetry and Literature" },
-  { "course_name": "BMS01, Business and Management (Section B)", "semester": 1, "display_name": "Business and Management" }
+  {
+    "course_name": "Organisational Behaviour - Batch A",
+    "semester": 3,
+    "display_name": "Organisational Behaviour"
+  },
+  {
+    "course_name": "Introduction to Law - Batch A",
+    "semester": 3,
+    "display_name": "Introduction to Law"
+  },
+  {
+    "course_name": "Community Project - Batch A",
+    "semester": 3,
+    "display_name": "Community Project"
+  },
+  {
+    "course_name": "World and Indian History - Batch A",
+    "semester": 3,
+    "display_name": "World and Indian History"
+  },
+  {
+    "course_name": "Mathematical Optimization - Batch A",
+    "semester": 3,
+    "display_name": "Mathematical Optimization"
+  },
+  {
+    "course_name": "Algorithmic Thinking and the Art of Programming - Batch A",
+    "semester": 3,
+    "display_name": "Algorithmic Thinking and Programming"
+  },
+  {
+    "course_name": "Foreign Language and Culture - Japanese",
+    "semester": 3,
+    "display_name": "Foreign Language and Culture (Japanese)"
+  },
+  {
+    "course_name": "Foreign Language and Culture - German",
+    "semester": 3,
+    "display_name": "Foreign Language and Culture (German)"
+  },
+  {
+    "course_name": "Functional language - Sanskrit",
+    "semester": 3,
+    "display_name": "Foreign Language and Culture (Sanskrit)"
+  },
+  {
+    "course_name": "Function Language - Malayalam",
+    "semester": 3,
+    "display_name": "Foreign Language and Culture (Malayalam)"
+  },
+  {
+    "course_name": "Management Accounting Section A",
+    "semester": 2,
+    "display_name": "Management Accounting"
+  },
+  {
+    "course_name": "Creating and Managing Customer Section A",
+    "semester": 2,
+    "display_name": "Creating and Managing Customer Value"
+  },
+  {
+    "course_name": "The Art of Mathematics Section A",
+    "semester": 2,
+    "display_name": "The Art of Mathematics"
+  },
+  {
+    "course_name": "Brain, Mind and Consciousness Section A",
+    "semester": 2,
+    "display_name": "Brain, Mind and Consciousness"
+  },
+  {
+    "course_name": "Computation and Artificial Intelligence Section A",
+    "semester": 2,
+    "display_name": "Computation and AI"
+  },
+  {
+    "course_name": "Yoga, Mindfulness and Meditation - Batch A",
+    "semester": 2,
+    "display_name": "Yoga, Mindfulness and Meditation"
+  },
+  {
+    "course_name": "Foreign Language - Spanish - Batch A",
+    "semester": 2,
+    "display_name": "Foreign Language (Spanish)"
+  },
+  {
+    "course_name": "Foreign Language - French - Batch A",
+    "semester": 2,
+    "display_name": "Foreign Language (French)"
+  },
+  {
+    "course_name": "Foreign Language - Japanese - Batch A",
+    "semester": 2,
+    "display_name": "Foreign Language (Japanese)"
+  },
+  {
+    "course_name": "Foreign Language - German - Batch A",
+    "semester": 2,
+    "display_name": "Foreign Language (German)"
+  },
+  {
+    "course_name": "Workshop and External Programs SEC B",
+    "semester": 2,
+    "display_name": "Workshop and External Programs"
+  },
+  {
+    "course_name": "Yoga Asana and Pranayama (Section B)",
+    "semester": 1,
+    "display_name": "Yoga Asana and Pranayama"
+  },
+  {
+    "course_name": "Sociology and Anthropology (Section B)",
+    "semester": 1,
+    "display_name": "Sociology and Anthropology"
+  },
+  {
+    "course_name": "Computing in Practice (Section B)",
+    "semester": 1,
+    "display_name": "Computing in Practice"
+  },
+  {
+    "course_name": "Introduction to Accounting and Finance (Section B)",
+    "semester": 1,
+    "display_name": "Introduction to Accounting and Finance"
+  },
+  {
+    "course_name": "Fundamentals of Economic Analysis (Section B)",
+    "semester": 1,
+    "display_name": "Fundamentals of Economic Analysis"
+  },
+  {
+    "course_name": "Poetry and Literature (Section B)",
+    "semester": 1,
+    "display_name": "Poetry and Literature"
+  },
+  {
+    "course_name": "BMS01, Business and Management (Section B)",
+    "semester": 1,
+    "display_name": "Business and Management"
+  }
 ]
