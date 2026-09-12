@@ -11,13 +11,39 @@ Naitik fills in once and is the same for every batchmate.
 """
 import os
 import re
+import csv
 import json
+import io
 import requests
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from bs4 import BeautifulSoup
 
 BASE_URL = "https://uglms.iimk.ac.in"
+
+# Naitik's shared Sem-III schedule sheet — public, view-only, no login needed.
+SCHEDULE_SHEET_ID = "1wbVXe5Ivk5UIS8anrEgn-V3LHQKDkLy3uHfqpe7mN-I"
+SCHEDULE_GID = "278743392"
+
+# Maps the short codes used in the schedule sheet (e.g. "OB-7") to full
+# subject names. Extend this if new subjects/codes show up.
+SUBJECT_CODES = {
+    "WIH": "World and Indian History",
+    "OB": "Organisational Behaviour",
+    "ATAP": "Algorithmic Thinking and Programming",
+    "MO": "Mathematical Optimization",
+    "ITL": "Introduction to Law",
+    "CP": "Community Project",
+}
+
+LANGUAGE_COLUMN = {
+    "japanese": "FLC (J)",
+    "german": "FLC (G)",
+    "french": "FLC (F)",
+    "spanish": "FLC (S)",
+}
 
 app = Flask(__name__)
 # Only allow requests from the actual frontend's origin — replace this
@@ -122,23 +148,35 @@ def get_attendance():
     site_info = ws_call(token, "core_webservice_get_site_info")
     courses = ws_call(token, "core_enrol_get_users_courses", userid=site_info["userid"])
 
-    result = []
-    for course in courses:
+    def fetch_one_course(course):
+        """Everything needed for one course, run in its own thread."""
         contents = ws_call(token, "core_course_get_contents", courseid=course["id"])
         mapped = course_map.get(course.get("fullname", ""), {})
+        entries = []
         for section in contents:
             for module in section.get("modules", []):
                 if module.get("modname") != "attendance":
                     continue
                 resp = session.get(f"{BASE_URL}/mod/attendance/view.php",
                                     params={"id": module["id"]}, timeout=15)
-                result.append({
+                entries.append({
                     "course_id": course["id"],
                     "course_name": course.get("fullname", ""),
                     "display_name": mapped.get("display_name", course.get("fullname", "")),
                     "semester": mapped.get("semester"),
                     "sessions": parse_attendance_table(resp.text),
                 })
+        return entries
+
+    result = []
+    # requests.Session isn't guaranteed thread-safe for concurrent requests
+    # sharing one connection pool under heavy load, but Moodle's session
+    # cookie auth only needs the same cookies sent — a modest pool size
+    # here trades a little safety margin for a large real-world speedup.
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futures = [pool.submit(fetch_one_course, c) for c in courses]
+        for future in as_completed(futures):
+            result.extend(future.result())
 
     return jsonify({"courses": result})
 
@@ -146,6 +184,112 @@ def get_attendance():
 @app.route("/api/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+def parse_code(raw):
+    """'MO-25 (AR)' -> ('MO', 'Mathematical Optimization', '25 (AR)')"""
+    raw = raw.strip()
+    match = re.match(r"^([A-Za-z]+)(?:-(.*))?$", raw)
+    if not match:
+        return raw, raw, ""
+    prefix, rest = match.group(1), (match.group(2) or "").strip()
+    name = SUBJECT_CODES.get(prefix.upper(), raw)
+    return prefix, name, rest
+
+
+def fetch_schedule_sheet():
+    """Downloads the full sheet as CSV — every row, no virtualization limits."""
+    url = f"https://docs.google.com/spreadsheets/d/{SCHEDULE_SHEET_ID}/export"
+    resp = requests.get(url, params={"format": "csv", "gid": SCHEDULE_GID}, timeout=15)
+    resp.raise_for_status()
+    return list(csv.reader(io.StringIO(resp.text)))
+
+
+def build_personal_schedule(section, language):
+    """
+    section: "A" or "B"
+    language: one of "japanese", "german", "french", "spanish"
+    Returns every session for that student, in order, each tagged with
+    its subject and a parsed datetime for sorting/filtering.
+    """
+    rows = fetch_schedule_sheet()
+
+    header_idx = None
+    for i, row in enumerate(rows):
+        if len(row) >= 3 and row[0].strip() == "Date" and row[1].strip() == "Day":
+            header_idx = i
+            break
+    if header_idx is None:
+        return []
+
+    header = rows[header_idx]
+    col_index = {name.strip(): i for i, name in enumerate(header) if name.strip()}
+
+    section_col = col_index.get(f"Sec {section.upper()}")
+    language_col = col_index.get(LANGUAGE_COLUMN.get(language.lower(), ""))
+    time_col, date_col, day_col = col_index.get("Time"), col_index.get("Date"), col_index.get("Day")
+
+    sessions = []
+    for row in rows[header_idx + 1:]:
+        if not row or date_col >= len(row) or not row[date_col].strip():
+            continue
+        date_str, day_str = row[date_col].strip(), row[day_col].strip()
+        time_str = row[time_col].strip() if time_col < len(row) else ""
+
+        for col in filter(None, [section_col, language_col]):
+            if col >= len(row):
+                continue
+            raw = row[col].strip()
+            if not raw or raw.upper() in ("LUNCH BREAK", "BLOCKED"):
+                continue
+            if col == language_col:
+                # We already know which language this is from context —
+                # no need to re-parse the "FLC (F)-11" style code.
+                prefix, session_no = "FLC", raw.split("-")[-1].strip()
+                name = f"Foreign Language ({language.capitalize()})"
+            else:
+                prefix, name, session_no = parse_code(raw)
+            try:
+                start_time = time_str.split("-")[0].strip()
+                dt = datetime.strptime(f"{date_str} {start_time}", "%A, %d %B, %Y %H:%M")
+            except ValueError:
+                dt = None
+            sessions.append({
+                "date": date_str,
+                "day": day_str,
+                "time": time_str,
+                "code": raw,
+                "subject": name,
+                "session_no": session_no,
+                "datetime": dt.isoformat() if dt else None,
+            })
+
+    sessions.sort(key=lambda s: s["datetime"] or "")
+    return sessions
+
+
+@app.route("/api/schedule")
+def get_schedule():
+    section = request.args.get("section", "A")
+    language = request.args.get("language", "")
+    if language.lower() not in LANGUAGE_COLUMN:
+        return jsonify({"error": "language must be one of: japanese, german, french, spanish"}), 400
+
+    sessions = build_personal_schedule(section, language)
+    now = datetime.now().isoformat()
+
+    upcoming = [s for s in sessions if s["datetime"] and s["datetime"] >= now]
+    next_class = upcoming[0] if upcoming else None
+
+    remaining_by_subject = {}
+    for s in upcoming:
+        remaining_by_subject[s["subject"]] = remaining_by_subject.get(s["subject"], 0) + 1
+
+    return jsonify({
+        "next_class": next_class,
+        "remaining_by_subject": remaining_by_subject,
+        "all_sessions": sessions,
+    })
 
 
 if __name__ == "__main__":
