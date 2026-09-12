@@ -115,14 +115,34 @@ def parse_attendance_table(html):
     return records
 
 
+def _normalize(name):
+    """Lowercase, collapse whitespace/dashes/punctuation — so 'Sec A' vs
+    'Section A', extra spaces, or different dash characters don't cause
+    a real match to be missed."""
+    name = name.lower()
+    name = re.sub(r"[-–—_,./]", " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
+
+
 def load_course_map():
-    """course_name -> {"semester": int, "display_name": str}"""
+    """Returns list of (normalized_name, entry) — matched by substring, not exact equality."""
     path = os.path.join(os.path.dirname(__file__), "course_map.json")
     if not os.path.exists(path):
-        return {}
+        return []
     with open(path) as f:
         entries = json.load(f)
-    return {e["course_name"]: e for e in entries}
+    return [(_normalize(e["course_name"]), e) for e in entries]
+
+
+def match_course(course_map, fullname):
+    """Finds the best course_map entry whose name is contained in (or
+    contains) the real Moodle fullname, after normalizing both sides."""
+    norm = _normalize(fullname)
+    for mapped_norm, entry in course_map:
+        if mapped_norm in norm or norm in mapped_norm:
+            return entry
+    return {}
 
 
 @app.route("/api/attendance", methods=["POST"])
@@ -151,7 +171,7 @@ def get_attendance():
     def fetch_one_course(course):
         """Everything needed for one course, run in its own thread."""
         contents = ws_call(token, "core_course_get_contents", courseid=course["id"])
-        mapped = course_map.get(course.get("fullname", ""), {})
+        mapped = match_course(course_map, course.get("fullname", ""))
         entries = []
         for section in contents:
             for module in section.get("modules", []):
