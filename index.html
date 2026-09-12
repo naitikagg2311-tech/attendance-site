@@ -554,47 +554,53 @@
 
   function renderSchedule(data) {
     const contentEl = document.getElementById('schedule-content');
-    const { next_class, remaining_by_subject, all_sessions } = data;
+    const { remaining_by_subject, all_sessions } = data;
     const filterSubject = document.getElementById('subject-filter').value;
 
     let html = '';
-
-    // Next-class card and remaining counts always reflect the FULL
-    // schedule — the subject filter only narrows the list below.
-    if (next_class) {
-      const dt = next_class.datetime ? new Date(next_class.datetime) : null;
-      const color = subjectColor(next_class.subject);
-      html += `
-        <div class="next-class-card" style="border-left-color:${color}">
-          <div>
-            <div class="eyebrow">Next class</div>
-            <h3 class="serif">${next_class.subject}</h3>
-            <div class="when">${next_class.day}, ${next_class.date_nice} · ${next_class.time_nice}</div>
-          </div>
-          ${dt ? `<div class="countdown">${formatCountdown(dt)}<span>from now</span></div>` : ''}
-        </div>`;
-    } else {
-      html += `<div class="empty-state">No upcoming classes found in the schedule.</div>`;
-    }
-
-    const subjects = Object.entries(remaining_by_subject || {});
-    if (subjects.length) {
-      html += `<div class="schedule-section-title">Sessions remaining</div><div class="remaining-grid">`;
-      subjects.forEach(([name, count]) => {
-        html += `<div class="remaining-item">
-          <span class="dot" style="background:${subjectColor(name)}"></span>
-          <span>${name}</span>
-          <span class="count"><b>${count}</b> left</span>
-        </div>`;
-      });
-      html += `</div>`;
-    }
 
     const nowIso = new Date().toISOString();
     let upcoming = (all_sessions || []).filter(s => s.datetime && s.datetime >= nowIso);
     if (filterSubject) {
       upcoming = upcoming.filter(s => s.subject === filterSubject);
     }
+
+    // 'upcoming' above is already filtered to the chosen subject (if any),
+    // so this naturally becomes "that subject's next class" when filtered,
+    // or "the nearest class overall" when showing all subjects.
+    const nextClass = upcoming.find(s => s.is_subject);
+
+    if (nextClass) {
+      const dt = nextClass.datetime ? new Date(nextClass.datetime) : null;
+      const color = subjectColor(nextClass.subject);
+      html += `
+        <div class="next-class-card" style="border-left-color:${color}">
+          <div>
+            <div class="eyebrow">Next class</div>
+            <h3 class="serif">${nextClass.subject}</h3>
+            <div class="when">${nextClass.day}, ${nextClass.date_nice} · ${nextClass.time_nice}</div>
+          </div>
+          ${dt ? `<div class="countdown">${formatCountdown(dt)}<span>from now</span></div>` : ''}
+        </div>`;
+    } else {
+      html += `<div class="empty-state">No upcoming classes found${filterSubject ? ' for ' + filterSubject : ''}.</div>`;
+    }
+
+    if (!filterSubject) {
+      const subjects = Object.entries(remaining_by_subject || {});
+      if (subjects.length) {
+        html += `<div class="schedule-section-title">Sessions remaining</div><div class="remaining-grid">`;
+        subjects.forEach(([name, count]) => {
+          html += `<div class="remaining-item">
+            <span class="dot" style="background:${subjectColor(name)}"></span>
+            <span>${name}</span>
+            <span class="count"><b>${count}</b> left</span>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+    }
+
     const byDate = {};
     upcoming.forEach(s => {
       byDate[s.date] = byDate[s.date] || [];
@@ -602,11 +608,13 @@
     });
 
     if (upcoming.length) {
-      html += `<div class="schedule-section-title">${filterSubject ? filterSubject + ' — upcoming' : 'Upcoming'}</div>`;
+      html += `<div class="schedule-section-title">${filterSubject ? filterSubject + ' — full upcoming schedule' : 'Upcoming'}</div>`;
     } else if (filterSubject) {
       html += `<div class="empty-state">No more upcoming sessions for ${filterSubject}.</div>`;
     }
-    Object.entries(byDate).slice(0, 14).forEach(([date, sessions]) => {
+    // No cap — every remaining day in the schedule renders; the page
+    // just scrolls, rather than cutting off after a fixed number of days.
+    Object.entries(byDate).forEach(([date, sessions]) => {
       html += `<div class="day-group"><h4>${sessions[0].date_nice}</h4><div class="timeline">`;
       sessions.forEach(s => {
         const dotColor = s.is_subject ? subjectColor(s.subject) : 'var(--hairline)';
