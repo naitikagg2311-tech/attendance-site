@@ -370,7 +370,7 @@ def get_schedule():
     now = datetime.now().isoformat()
 
     upcoming = [s for s in sessions if s["datetime"] and s["datetime"] >= now]
-    next_class = upcoming[0] if upcoming else None
+    next_class = next((s for s in upcoming if s["is_subject"]), None)
 
     remaining_by_subject = {}
     for s in upcoming:
