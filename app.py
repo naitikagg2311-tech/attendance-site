@@ -216,14 +216,22 @@ def health():
 
 
 def parse_code(raw):
-    """'MO-25 (AR)' -> ('MO', 'Mathematical Optimization', '25 (AR)')"""
+    """
+    'MO-25 (AR)' -> ('MO', 'Mathematical Optimization', '25 (AR)')
+    'CP 11'      -> ('CP', 'Community Project', '11')
+    Checks against known codes explicitly (handles space, hyphen, or no
+    separator at all) rather than assuming one fixed format — the sheet
+    isn't consistent about which separator it uses per subject.
+    Anything that isn't a known code (e.g. 'Community Project' spelled
+    out, 'Buffer/Quiz') is returned as-is, unparsed.
+    """
     raw = raw.strip()
-    match = re.match(r"^([A-Za-z]+)(?:-(.*))?$", raw)
-    if not match:
-        return raw, raw, ""
-    prefix, rest = match.group(1), (match.group(2) or "").strip()
-    name = SUBJECT_CODES.get(prefix.upper(), raw)
-    return prefix, name, rest
+    upper = raw.upper()
+    for code, name in SUBJECT_CODES.items():
+        if upper == code or upper.startswith(code + " ") or upper.startswith(code + "-"):
+            rest = raw[len(code):].strip(" -")
+            return code, name, rest
+    return raw, raw, ""
 
 
 def ordinal(n):
