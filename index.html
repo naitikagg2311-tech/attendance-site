@@ -170,8 +170,11 @@
   .bar-fill { height: 4px; background: var(--present); }
   .bar-fill-risk { background: var(--absent); }
   .subject-tally.at-risk { color: var(--absent); font-weight: 500; }
-  .risk-note { font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
-  .risk-note.at-risk { color: var(--absent); }
+  .risk-note.tier-topper { color: var(--gold); font-weight: 500; }
+  .risk-note.tier-safe { color: var(--muted); }
+  .risk-note.tier-warning { color: #B5772E; font-weight: 500; }
+  .risk-note.tier-risk { color: var(--absent); font-weight: 500; }
+  .risk-note { font-size: 0.78rem; margin-top: 6px; }
 
   .session-list { margin-top: 14px; display: none; }
   .subject-row.expanded .session-list { display: block; }
@@ -515,7 +518,15 @@
     if (start == null || end == null) return null;
     let diff = end - start;
     if (diff <= 0) diff += 12; // guards against an unexpected AM/PM edge case
-    return diff;
+
+    // Moodle sometimes records one attendance entry spanning what's
+    // actually back-to-back class hours with a 15-min break between
+    // them (e.g. a raw span of 2h15m is really two 1-hour classes +
+    // one break, not 2.25 real class-hours). Only kicks in above 60
+    // minutes — a plain single-hour slot is left untouched.
+    const rawMinutes = diff * 60;
+    if (rawMinutes <= 60) return diff;
+    return Math.round((rawMinutes + 15) / 75);
   }
 
   /**
@@ -540,20 +551,35 @@
    * session-count version can't: whether 75% is still mathematically
    * reachable at all, not just how many more sessions to attend.
    */
+  const CUSHION_WARNING_HOURS = 4; // below this many hours of safety margin, show the warning tier
+
   function attendanceRiskHours(attended, conducted, totalHours) {
     const allowedMisses = totalHours * (1 - REQUIRED_ATTENDANCE);
     const missedSoFar = conducted - attended;
     const remainingAllowed = allowedMisses - missedSoFar;
     const hoursLeft = Math.max(totalHours - conducted, 0);
-    if (remainingAllowed >= 0) {
+
+    if (missedSoFar === 0 && conducted > 0) {
       return {
-        atRisk: false,
-        message: `${Math.round(conducted)} of ${totalHours} hrs done — can miss ${Math.floor(remainingAllowed)} more hrs (${Math.round(hoursLeft)} hrs left in the course)`,
+        tier: 'topper', atRisk: false,
+        message: `100% attendance, ${Math.round(conducted)} of ${totalHours} hrs — topper energy 🏆`,
+      };
+    }
+    if (remainingAllowed < 0) {
+      return {
+        tier: 'risk', atRisk: true,
+        message: `${Math.round(conducted)} of ${totalHours} hrs done, ${Math.ceil(-remainingAllowed)} hrs over the limit — 75% isn't reachable even attending every remaining hour 💀`,
+      };
+    }
+    if (remainingAllowed <= CUSHION_WARNING_HOURS) {
+      return {
+        tier: 'warning', atRisk: false,
+        message: `Only ${Math.floor(remainingAllowed)} hrs of cushion left before you drop below 75% — cutting it close`,
       };
     }
     return {
-      atRisk: true,
-      message: `${Math.round(conducted)} of ${totalHours} hrs done — already ${Math.ceil(-remainingAllowed)} hrs over the limit; 75% isn't reachable even attending every remaining hour`,
+      tier: 'safe', atRisk: false,
+      message: `${Math.round(conducted)} of ${totalHours} hrs done — can miss ${Math.floor(remainingAllowed)} more hrs (${Math.round(hoursLeft)} hrs left in the course)`,
     };
   }
 
@@ -568,12 +594,22 @@
   function attendanceRisk(present, total) {
     if (total === 0) return null;
     const pct = present / total;
+    if (present === total) {
+      return { tier: 'topper', atRisk: false, message: `${present}/${total} — perfect record, topper energy 🏆` };
+    }
     if (pct >= REQUIRED_ATTENDANCE) {
       const canMiss = Math.floor(present / REQUIRED_ATTENDANCE - total);
-      return { atRisk: false, message: canMiss > 0 ? `Safe — can miss ${canMiss} more` : 'Safe — right at the line' };
+      if (canMiss <= CUSHION_WARNING_HOURS) {
+        return { tier: 'warning', atRisk: false, message: `Only ${canMiss} more you can miss before dropping below 75% — cutting it close` };
+      }
+      return { tier: 'safe', atRisk: false, message: `Safe — can miss ${canMiss} more` };
     }
     const needToAttend = Math.ceil((REQUIRED_ATTENDANCE * total - present) / (1 - REQUIRED_ATTENDANCE));
-    return { atRisk: true, message: `Below ${Math.round(REQUIRED_ATTENDANCE * 100)}% — attend the next ${needToAttend} in a row to recover` };
+    return { tier: 'risk', atRisk: true, message: `Below 75% — attend the next ${needToAttend} in a row to recover 💀` };
+  }
+
+  function riskTierClass(tier) {
+    return { topper: 'tier-topper', safe: 'tier-safe', warning: 'tier-warning', risk: 'tier-risk' }[tier] || '';
   }
 
   /** Picks the hours-based calculation when total_hours is configured for
@@ -611,8 +647,8 @@
           <span class="subject-tally ${risk && risk.atRisk ? 'at-risk' : ''}">${presentCount} / ${sessions.length} present · ${pct}%</span>
         </div>
         <div class="bar-track"><div class="bar-fill ${risk && risk.atRisk ? 'bar-fill-risk' : ''}" style="width:${pct}%"></div></div>
-        ${risk ? `<div class="risk-note ${risk.atRisk ? 'at-risk' : ''}">${esc(risk.message)}</div>` : ''}
         <div class="session-list">
+          ${risk ? `<div class="risk-note ${riskTierClass(risk.tier)}">${esc(risk.message)}</div>` : ''}
           ${sessions.length === 0
             ? `<div class="empty-state">No sessions recorded yet.</div>`
             : sessions.map(s => `
