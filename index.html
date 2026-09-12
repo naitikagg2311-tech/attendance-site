@@ -265,6 +265,7 @@
   }
   .day-row .time-label { color: var(--muted); font-size: 0.85rem; }
   .day-row .subject-label { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+  .day-row .event-label { color: var(--muted); font-style: italic; font-weight: 400; }
 </style>
 </head>
 <body>
@@ -520,7 +521,9 @@
   function populateSubjectFilter(data) {
     const filterEl = document.getElementById('subject-filter');
     const current = filterEl.value;
-    const subjects = [...new Set((data.all_sessions || []).map(s => s.subject))].sort();
+    const subjects = [...new Set((data.all_sessions || [])
+      .filter(s => s.is_subject)
+      .map(s => s.subject))].sort();
     filterEl.innerHTML = `<option value="">All subjects</option>` +
       subjects.map(s => `<option value="${s}">${s}</option>`).join('');
     filterEl.value = subjects.includes(current) ? current : '';
@@ -606,9 +609,11 @@
     Object.entries(byDate).slice(0, 14).forEach(([date, sessions]) => {
       html += `<div class="day-group"><h4>${sessions[0].date_nice}</h4><div class="timeline">`;
       sessions.forEach(s => {
-        html += `<div class="day-row" style="--dot-color:${subjectColor(s.subject)}">
+        const dotColor = s.is_subject ? subjectColor(s.subject) : 'var(--hairline)';
+        const labelClass = s.is_subject ? 'subject-label' : 'subject-label event-label';
+        html += `<div class="day-row" style="--dot-color:${dotColor}">
           <span class="time-label">${s.time_nice}</span>
-          <span class="subject-label">${s.subject}</span>
+          <span class="${labelClass}">${s.subject}</span>
         </div>`;
       });
       html += `</div></div>`;
