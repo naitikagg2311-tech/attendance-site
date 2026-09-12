@@ -88,6 +88,9 @@ def ws_call(token, function, **params):
     return resp.json()
 
 
+TIME_RANGE_RE = re.compile(r"(\d{1,2}(:\d{2})?\s*[AP]M\s*-\s*\d{1,2}(:\d{2})?\s*[AP]M)", re.IGNORECASE)
+
+
 def parse_attendance_table(html):
     soup = BeautifulSoup(html, "html.parser")
     table = soup.find("table", class_="generaltable")
@@ -104,10 +107,16 @@ def parse_attendance_table(html):
         points_cell = row.find("td", class_=lambda c: c and "pointscol" in c)
         if date_cell is None or status_cell is None:
             continue
-        date_lines = [s.strip() for s in date_cell.stripped_strings]
+        # The date cell's date + time may render on one line or two
+        # depending on Moodle's view mode — pull the time out with a
+        # regex instead of assuming a fixed line count.
+        full_text = " ".join(date_cell.stripped_strings)
+        time_match = TIME_RANGE_RE.search(full_text)
+        time_val = time_match.group(1) if time_match else ""
+        date_val = full_text.replace(time_val, "").strip(" ,")
         records.append({
-            "date": date_lines[0] if date_lines else "",
-            "time": date_lines[1] if len(date_lines) > 1 else "",
+            "date": date_val,
+            "time": time_val,
             "session": desc_cell.get_text(strip=True) if desc_cell else "",
             "status": status_cell.get_text(strip=True),
             "points": points_cell.get_text(strip=True) if points_cell else "",
@@ -217,6 +226,55 @@ def parse_code(raw):
     return prefix, name, rest
 
 
+def ordinal(n):
+    if 10 <= n % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def format_date_nice(date_str):
+    """'Friday, 4 September, 2026' -> '4th Sept'"""
+    try:
+        dt = datetime.strptime(date_str, "%A, %d %B, %Y")
+        return f"{ordinal(dt.day)} {dt.strftime('%b')}"
+    except ValueError:
+        return date_str
+
+
+def format_time_range(raw_time):
+    """
+    '14:30-15:30' -> '2:30-3:30 pm'. The sheet's own hours are ambiguous
+    below 10 (e.g. '01:30' really means 1:30 PM) because every class
+    slot in this schedule falls between 10 AM and 6 PM — so any hour
+    written below 10 is normalized up by 12 before formatting.
+    """
+    try:
+        start_raw, end_raw = raw_time.split("-")
+
+        def norm(t):
+            h, m = map(int, t.strip().split(":"))
+            if h < 10:
+                h += 12
+            return h, m
+
+        def to12(h):
+            period = "am" if h < 12 else "pm"
+            h12 = h % 12 or 12
+            return h12, period
+
+        sh, sm = norm(start_raw)
+        eh, em = norm(end_raw)
+        sh12, speriod = to12(sh)
+        eh12, eperiod = to12(eh)
+        if speriod == eperiod:
+            return f"{sh12}:{sm:02d}-{eh12}:{em:02d} {eperiod}"
+        return f"{sh12}:{sm:02d} {speriod}-{eh12}:{em:02d} {eperiod}"
+    except Exception:
+        return raw_time
+
+
 def fetch_schedule_sheet():
     """Downloads the full sheet as CSV — every row, no virtualization limits."""
     url = f"https://docs.google.com/spreadsheets/d/{SCHEDULE_SHEET_ID}/export"
@@ -276,8 +334,10 @@ def build_personal_schedule(section, language):
                 dt = None
             sessions.append({
                 "date": date_str,
+                "date_nice": format_date_nice(date_str),
                 "day": day_str,
                 "time": time_str,
+                "time_nice": format_time_range(time_str),
                 "code": raw,
                 "subject": name,
                 "session_no": session_no,
