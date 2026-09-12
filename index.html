@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UG LMS Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #17233D;
+    --ink-strong: #101A2E;
+    --paper: #F6F3EC;
+    --panel: #FFFFFF;
+    --hairline: #D9D3C4;
+    --gold: #A9822F;
+    --present: #3F6B4E;
+    --absent: #9C4A3A;
+    --muted: #6B6558;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .serif { font-family: 'Source Serif 4', Georgia, serif; }
+
+  header.masthead {
+    background: var(--ink-strong);
+    color: var(--paper);
+    padding: 22px 28px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    border-bottom: 3px solid var(--gold);
+  }
+  header.masthead h1 { font-size: 1.3rem; font-weight: 600; margin: 0; letter-spacing: 0.2px; }
+  header.masthead span.sub { font-size: 0.85rem; color: #C9C2AE; }
+
+  main { max-width: 880px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  /* --- Login --- */
+  #login-view { display: flex; justify-content: center; padding-top: 60px; }
+  .login-card {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    padding: 36px 32px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .login-card h2 { font-size: 1.4rem; margin: 0 0 6px; }
+  .login-card p.hint { color: var(--muted); font-size: 0.88rem; margin: 0 0 22px; line-height: 1.5; }
+  label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 5px; }
+  input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--hairline);
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 0.95rem;
+    margin-bottom: 16px;
+  }
+  input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  button {
+    width: 100%;
+    padding: 11px;
+    background: var(--ink-strong);
+    color: var(--paper);
+    border: none;
+    font-family: inherit;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  button:hover { background: var(--ink); }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .error-msg { color: var(--absent); font-size: 0.85rem; margin-top: 12px; }
+  .privacy-note {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--hairline);
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* --- Dashboard --- */
+  #dashboard-view { display: none; }
+  nav.tabs {
+    display: flex;
+    gap: 22px;
+    border-bottom: 1px solid var(--hairline);
+    margin-bottom: 24px;
+  }
+  nav.tabs button {
+    all: unset;
+    cursor: pointer;
+    padding: 8px 2px 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.92rem;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+  }
+  nav.tabs button.active { color: var(--ink-strong); border-bottom-color: var(--gold); font-weight: 500; }
+
+  .subject-row {
+    border-bottom: 1px solid var(--hairline);
+    padding: 16px 4px;
+    cursor: pointer;
+  }
+  .subject-row:hover { background: rgba(169,130,47,0.05); }
+  .subject-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .subject-head h3 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+  .subject-tally { font-size: 0.85rem; color: var(--muted); }
+  .bar-track { height: 4px; background: var(--hairline); margin-top: 8px; }
+  .bar-fill { height: 4px; background: var(--present); }
+
+  .session-list { margin-top: 14px; display: none; }
+  .subject-row.expanded .session-list { display: block; }
+  .session-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 90px 70px;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 0.85rem;
+    border-top: 1px dotted var(--hairline);
+  }
+  .session-row:first-child { border-top: none; }
+  .status-present { color: var(--present); }
+  .status-absent { color: var(--absent); }
+  .status-other { color: var(--muted); }
+
+  .empty-state { padding: 40px 10px; color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
+  .empty-state h3 { color: var(--ink); margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <h1>UG LMS Register</h1>
+  <span class="sub">Bachelor of Management Studies · Attendance</span>
+</header>
+
+<main>
+
+  <div id="login-view">
+    <div class="login-card">
+      <h2 class="serif">Log in</h2>
+      <p class="hint">Use your LMS username and password. Nothing you type here is saved anywhere.</p>
+      <form id="login-form">
+        <label for="username">Username</label>
+        <input type="text" id="username" autocomplete="username" required>
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required>
+        <button type="submit" id="login-btn">View my attendance</button>
+      </form>
+      <div class="error-msg" id="error-msg" style="display:none;"></div>
+      <div class="privacy-note">
+        Your credentials are sent once to fetch your attendance, then discarded immediately —
+        they're never written to a database, a file, or a log. This page can't see anyone
+        else's login, and no one else can see yours.
+      </div>
+    </div>
+  </div>
+
+  <div id="dashboard-view">
+    <nav class="tabs" id="semester-tabs"></nav>
+    <div id="subject-list"></div>
+  </div>
+
+</main>
+
+<script>
+  // Point this at your deployed backend before publishing.
+  const API_BASE = "https://YOUR-BACKEND-URL.onrender.com";
+
+  let allCourses = [];
+  let activeSemester = null;
+
+  const loginForm = document.getElementById('login-form');
+  const loginView = document.getElementById('login-view');
+  const dashboardView = document.getElementById('dashboard-view');
+  const errorMsg = document.getElementById('error-msg');
+  const loginBtn = document.getElementById('login-btn');
+
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorMsg.style.display = 'none';
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Checking...';
+
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data.error || 'Something went wrong.');
+      }
+
+      allCourses = data.courses || [];
+      // Immediately clear the password field's value from memory.
+      document.getElementById('password').value = '';
+
+      renderDashboard();
+      loginView.style.display = 'none';
+      dashboardView.style.display = 'block';
+    } catch (err) {
+      errorMsg.textContent = err.message;
+      errorMsg.style.display = 'block';
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'View my attendance';
+    }
+  });
+
+  function renderDashboard() {
+    const semesters = [...new Set(allCourses.map(c => c.semester ?? 'Unclassified'))]
+      .sort((a, b) => (a === 'Unclassified' ? 1 : b === 'Unclassified' ? -1 : a - b));
+
+    activeSemester = semesters[0];
+
+    const tabsEl = document.getElementById('semester-tabs');
+    tabsEl.innerHTML = '';
+    semesters.forEach(sem => {
+      const btn = document.createElement('button');
+      btn.textContent = sem === 'Unclassified' ? 'Unclassified' : `Semester ${sem}`;
+      btn.className = sem === activeSemester ? 'active' : '';
+      btn.addEventListener('click', () => {
+        activeSemester = sem;
+        renderSubjectList();
+        [...tabsEl.children].forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+      tabsEl.appendChild(btn);
+    });
+
+    renderSubjectList();
+  }
+
+  function renderSubjectList() {
+    const listEl = document.getElementById('subject-list');
+    const courses = allCourses.filter(c => (c.semester ?? 'Unclassified') === activeSemester);
+
+    if (courses.length === 0) {
+      listEl.innerHTML = `<div class="empty-state"><h3 class="serif">Nothing here yet</h3>
+        This semester has no attendance activities on record.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = '';
+    courses.forEach(course => {
+      const sessions = course.sessions || [];
+      const presentCount = sessions.filter(s => /present/i.test(s.status)).length;
+      const pct = sessions.length ? Math.round((presentCount / sessions.length) * 100) : 0;
+
+      const row = document.createElement('div');
+      row.className = 'subject-row';
+      row.innerHTML = `
+        <div class="subject-head">
+          <h3>${course.display_name}</h3>
+          <span class="subject-tally">${presentCount} / ${sessions.length} present · ${pct}%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <div class="session-list">
+          ${sessions.length === 0
+            ? `<div class="empty-state">No sessions recorded yet.</div>`
+            : sessions.map(s => `
+              <div class="session-row">
+                <span>${s.date}</span>
+                <span>${s.session}</span>
+                <span class="${statusClass(s.status)}">${s.status}</span>
+                <span>${s.points}</span>
+              </div>
+            `).join('')}
+        </div>
+      `;
+      row.addEventListener('click', () => row.classList.toggle('expanded'));
+      listEl.appendChild(row);
+    });
+  }
+
+  function statusClass(status) {
+    if (/present/i.test(status)) return 'status-present';
+    if (/absent/i.test(status)) return 'status-absent';
+    return 'status-other';
+  }
+</script>
+
+</body>
+</html>
