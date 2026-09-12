@@ -22,7 +22,7 @@ BASE_URL = "https://uglms.iimk.ac.in"
 app = Flask(__name__)
 # Only allow requests from the actual frontend's origin — replace this
 # with your real GitHub Pages URL once you know it.
-CORS(app, origins=["https://YOUR-GITHUB-USERNAME.github.io"])
+CORS(app, origins=["https://naitikagg2311-tech.github.io"])
 
 
 def moodle_login(username, password):
