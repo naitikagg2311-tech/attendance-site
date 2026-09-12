@@ -144,6 +144,19 @@
   }
   nav.tabs button.active { color: var(--ink-strong); border-bottom-color: var(--gold); font-weight: 500; }
 
+  .export-bar {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    border-bottom: 1px solid var(--hairline); margin-bottom: 24px;
+  }
+  .export-bar nav.tabs { border-bottom: none; margin-bottom: 0; }
+  .export-btn {
+    all: unset; cursor: pointer;
+    font-size: 0.82rem; color: var(--muted);
+    padding: 6px 0 12px;
+    border-bottom: 2px solid transparent;
+  }
+  .export-btn:hover { color: var(--ink-strong); }
+
   .subject-row {
     border-bottom: 1px solid var(--hairline);
     padding: 16px 4px;
@@ -155,6 +168,10 @@
   .subject-tally { font-size: 0.85rem; color: var(--muted); }
   .bar-track { height: 4px; background: var(--hairline); margin-top: 8px; }
   .bar-fill { height: 4px; background: var(--present); }
+  .bar-fill-risk { background: var(--absent); }
+  .subject-tally.at-risk { color: var(--absent); font-weight: 500; }
+  .risk-note { font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+  .risk-note.at-risk { color: var(--absent); }
 
   .session-list { margin-top: 14px; display: none; }
   .subject-row.expanded .session-list { display: block; }
@@ -310,7 +327,10 @@
   </nav>
 
   <div id="register-panel">
-    <nav class="tabs" id="semester-tabs"></nav>
+    <div class="export-bar">
+      <nav class="tabs" id="semester-tabs"></nav>
+      <button id="export-btn" class="export-btn">Export CSV</button>
+    </div>
     <div id="subject-list"></div>
   </div>
 
@@ -418,11 +438,38 @@
   });
 
   // --- Register (attendance) rendering ---
+  function csvEscape(val) {
+    const s = String(val ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  document.getElementById('export-btn').addEventListener('click', () => {
+    const courses = allCourses.filter(c => (c.semester ?? 'Unclassified') === activeSemester);
+    const rows = [['Subject', 'Present', 'Total', 'Percentage', 'Status']];
+    courses.forEach(course => {
+      const sessions = course.sessions || [];
+      const presentCount = sessions.filter(s => /present/i.test(s.status)).length;
+      const pct = sessions.length ? Math.round((presentCount / sessions.length) * 100) : 0;
+      const risk = attendanceRisk(presentCount, sessions.length);
+      rows.push([course.display_name, presentCount, sessions.length, `${pct}%`, risk ? risk.message : '']);
+    });
+
+    const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const semLabel = activeSemester === 'Unclassified' ? 'unclassified' : `semester-${activeSemester}`;
+    a.href = url;
+    a.download = `attendance-${semLabel}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
   function renderDashboard() {
     const semesters = [...new Set(allCourses.map(c => c.semester ?? 'Unclassified'))]
       .sort((a, b) => (a === 'Unclassified' ? 1 : b === 'Unclassified' ? -1 : a - b));
 
-    activeSemester = semesters[0];
+    activeSemester = semesters.includes(3) ? 3 : semesters[0];
 
     const tabsEl = document.getElementById('semester-tabs');
     tabsEl.innerHTML = '';
@@ -442,6 +489,26 @@
     renderSubjectList();
   }
 
+  const REQUIRED_ATTENDANCE = 0.75; // IIMK's typical minimum — adjust here if yours differs
+
+  /**
+   * Standard 'attendance calculator' formula — works from present/total
+   * alone, no need to know the semester's eventual total session count.
+   * If at or above the requirement: how many more you can miss and stay
+   * at/above it. If below: how many in a row you'd need to attend to
+   * climb back up to it.
+   */
+  function attendanceRisk(present, total) {
+    if (total === 0) return null;
+    const pct = present / total;
+    if (pct >= REQUIRED_ATTENDANCE) {
+      const canMiss = Math.floor(present / REQUIRED_ATTENDANCE - total);
+      return { atRisk: false, message: canMiss > 0 ? `Safe — can miss ${canMiss} more` : 'Safe — right at the line' };
+    }
+    const needToAttend = Math.ceil((REQUIRED_ATTENDANCE * total - present) / (1 - REQUIRED_ATTENDANCE));
+    return { atRisk: true, message: `Below ${Math.round(REQUIRED_ATTENDANCE * 100)}% — attend the next ${needToAttend} in a row to recover` };
+  }
+
   function renderSubjectList() {
     const listEl = document.getElementById('subject-list');
     const courses = allCourses.filter(c => (c.semester ?? 'Unclassified') === activeSemester);
@@ -457,15 +524,17 @@
       const sessions = course.sessions || [];
       const presentCount = sessions.filter(s => /present/i.test(s.status)).length;
       const pct = sessions.length ? Math.round((presentCount / sessions.length) * 100) : 0;
+      const risk = attendanceRisk(presentCount, sessions.length);
 
       const row = document.createElement('div');
       row.className = 'subject-row';
       row.innerHTML = `
         <div class="subject-head">
           <h3>${esc(course.display_name)}</h3>
-          <span class="subject-tally">${presentCount} / ${sessions.length} present · ${pct}%</span>
+          <span class="subject-tally ${risk && risk.atRisk ? 'at-risk' : ''}">${presentCount} / ${sessions.length} present · ${pct}%</span>
         </div>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <div class="bar-track"><div class="bar-fill ${risk && risk.atRisk ? 'bar-fill-risk' : ''}" style="width:${pct}%"></div></div>
+        ${risk ? `<div class="risk-note ${risk.atRisk ? 'at-risk' : ''}">${esc(risk.message)}</div>` : ''}
         <div class="session-list">
           ${sessions.length === 0
             ? `<div class="empty-state">No sessions recorded yet.</div>`
