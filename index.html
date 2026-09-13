@@ -928,12 +928,28 @@
     return localStorage.getItem(`assignment_done_${id}`) === 'true';
   }
 
+  /**
+   * A student's course list includes every semester they've ever taken,
+   * not just the current one — so the highest semester number present
+   * is a reliable stand-in for "which semester is ongoing right now",
+   * and it self-adjusts per batch without any hardcoding (Batch 01 on
+   * Sem 3, Batch 02 on Sem 1, etc. each just see their own highest).
+   */
+  function getOngoingSemester() {
+    const numbered = allCourses.map(c => c.semester).filter(s => typeof s === 'number');
+    return numbered.length ? Math.max(...numbered) : null;
+  }
+
   function renderAssignmentsPanel() {
     const listEl = document.getElementById('assignments-list');
-    const items = [...allAssignments].sort((a, b) => (a.duedate || Infinity) - (b.duedate || Infinity));
+    const ongoing = getOngoingSemester();
+    // Keep unmapped/unclassified subjects too (semester is null) — only
+    // filter out ones we're CONFIRMED belong to a past semester.
+    const inScope = allAssignments.filter(a => a.semester == null || a.semester === ongoing);
+    const items = [...inScope].sort((a, b) => (a.duedate || Infinity) - (b.duedate || Infinity));
 
     if (!items.length) {
-      listEl.innerHTML = `<div class="empty-state">No assignments found across your courses.</div>`;
+      listEl.innerHTML = `<div class="empty-state">No assignments found for the current semester.</div>`;
       return;
     }
 
