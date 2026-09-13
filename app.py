@@ -36,6 +36,7 @@ SCHEDULES = {
     "25": {  # Batch 25 — Semester 3 (seniors)
         "sheet_id": "1wbVXe5Ivk5UIS8anrEgn-V3LHQKDkLy3uHfqpe7mN-I",
         "gid": "278743392",
+        "has_language": True,
         "subject_codes": {
             "WIH": "World and Indian History",
             "OB": "Organisational Behaviour",
@@ -48,6 +49,7 @@ SCHEDULES = {
     "26": {  # Batch 26 — Semester 1 (juniors)
         "sheet_id": "11qYtZ5q_-QsWGg2d3OuSezakxz83oGJvD5gCwY-ymWQ",
         "gid": "0",
+        "has_language": False,  # this batch's sheet has no foreign-language columns yet
         "subject_codes": {
             "BM": "Business and Management",
             "PL": "Poetry and Literature",
@@ -94,6 +96,16 @@ def ongoing_semester_for_username(username):
     here yet, for example)."""
     year = batch_year_from_username(username)
     return BATCH_CURRENT_SEMESTER.get(year) if year else None
+
+
+def has_language_track_for_username(username):
+    """Whether this student's batch schedule has foreign-language columns
+    at all — lets the frontend hide the language picker entirely for a
+    batch (like the current juniors) whose sheet doesn't have one yet,
+    rather than showing a control that would silently do nothing."""
+    year = batch_year_from_username(username)
+    config = SCHEDULES.get(year)
+    return bool(config and config.get("has_language"))
 
 
 app = Flask(__name__)
@@ -362,6 +374,7 @@ def get_attendance():
         "courses": result,
         "assignments": assignments,
         "ongoing_semester": ongoing_semester_for_username(username),
+        "has_language_track": has_language_track_for_username(username),
     })
 
 
