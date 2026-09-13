@@ -164,6 +164,68 @@ def match_course(course_map, fullname):
     return {}
 
 
+def strip_html(html):
+    """Moodle's assignment descriptions come back as HTML — plain text
+    reads better in a simple list/expand UI."""
+    if not html:
+        return ""
+    return BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+
+
+def fetch_assignments(token_http, token, courses, course_map, userid):
+    """
+    Returns every assignment across the student's courses, tagged with
+    display name/semester (same course_map as attendance) and Moodle's
+    OWN real submission status — not a self-reported checkbox that could
+    drift from what's actually true. Never raises — assignments are a
+    bonus feature, so a failure here degrades to an empty list rather
+    than breaking the core attendance response.
+    """
+    if not courses:
+        return []
+    try:
+        course_lookup = {c["id"]: c for c in courses}
+        assign_params = {f"courseids[{i}]": c["id"] for i, c in enumerate(courses)}
+        assign_data = ws_call(token_http, token, "mod_assign_get_assignments", **assign_params)
+
+        assignments = []
+        for course_block in assign_data.get("courses", []):
+            course_id = course_block["id"]
+            mapped = match_course(course_map, course_lookup.get(course_id, {}).get("fullname", ""))
+            for a in course_block.get("assignments", []):
+                assignments.append({
+                    "id": a["id"],
+                    "name": a.get("name", ""),
+                    "intro": strip_html(a.get("intro", "")),
+                    "duedate": a.get("duedate") or None,  # Moodle uses 0 for "no due date"
+                    "course_id": course_id,
+                    "display_name": mapped.get("display_name", course_lookup.get(course_id, {}).get("fullname", "")),
+                    "semester": mapped.get("semester"),
+                    "submission_status": "unknown",
+                })
+
+        if not assignments:
+            return []
+
+        sub_params = {f"assignmentids[{i}]": a["id"] for i, a in enumerate(assignments)}
+        sub_data = ws_call(token_http, token, "mod_assign_get_submissions", **sub_params)
+
+        status_by_assignment = {}
+        for block in sub_data.get("assignments", []):
+            for sub in block.get("submissions", []):
+                if sub.get("userid") == userid:
+                    status_by_assignment[block["assignmentid"]] = sub.get("status", "unknown")
+
+        for a in assignments:
+            # Moodle's own statuses: 'submitted', 'draft', or 'new' (never
+            # started). Anything not in the map means no submission exists yet.
+            a["submission_status"] = status_by_assignment.get(a["id"], "new")
+
+        return assignments
+    except (requests.exceptions.RequestException, KeyError, ValueError, TypeError):
+        return []
+
+
 @app.route("/api/attendance", methods=["POST"])
 @limiter.limit("5 per minute")
 def get_attendance():
@@ -205,37 +267,45 @@ def get_attendance():
         return jsonify({"error": "Couldn't reach the LMS right now. Try again shortly."}), 502
 
     def fetch_one_course(course):
-        """Everything needed for one course, run in its own thread."""
-        contents = ws_call(token_http, token, "core_course_get_contents", courseid=course["id"])
-        mapped = match_course(course_map, course.get("fullname", ""))
-        entries = []
-        for section in contents:
-            for module in section.get("modules", []):
-                if module.get("modname") != "attendance":
-                    continue
-                resp = cookie_http.get(f"{BASE_URL}/mod/attendance/view.php",
-                                        params={"id": module["id"], "view": 5}, timeout=15)
-                entries.append({
-                    "course_id": course["id"],
-                    "course_name": course.get("fullname", ""),
-                    "display_name": mapped.get("display_name", course.get("fullname", "")),
-                    "semester": mapped.get("semester"),
-                    "total_hours": mapped.get("total_hours"),
-                    "sessions": parse_attendance_table(resp.text),
-                })
-        return entries
+        """Everything needed for one course, run in its own thread. Never
+        raises — one course's network hiccup shouldn't crash the whole
+        response when every other course fetched fine."""
+        try:
+            contents = ws_call(token_http, token, "core_course_get_contents", courseid=course["id"])
+            mapped = match_course(course_map, course.get("fullname", ""))
+            entries = []
+            for section in contents:
+                for module in section.get("modules", []):
+                    if module.get("modname") != "attendance":
+                        continue
+                    resp = cookie_http.get(f"{BASE_URL}/mod/attendance/view.php",
+                                            params={"id": module["id"], "view": 5}, timeout=15)
+                    entries.append({
+                        "course_id": course["id"],
+                        "course_name": course.get("fullname", ""),
+                        "display_name": mapped.get("display_name", course.get("fullname", "")),
+                        "semester": mapped.get("semester"),
+                        "total_hours": mapped.get("total_hours"),
+                        "sessions": parse_attendance_table(resp.text),
+                    })
+            return entries
+        except (requests.exceptions.RequestException, KeyError, ValueError, TypeError):
+            return []
 
     result = []
+    assignments = []
     # requests.Session isn't guaranteed thread-safe for concurrent requests
     # sharing one connection pool under heavy load, but Moodle's session
     # cookie auth only needs the same cookies sent — a modest pool size
     # here trades a little safety margin for a large real-world speedup.
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=7) as pool:
         futures = [pool.submit(fetch_one_course, c) for c in courses]
+        assignments_future = pool.submit(fetch_assignments, token_http, token, courses, course_map, site_info["userid"])
         for future in as_completed(futures):
             result.extend(future.result())
+        assignments = assignments_future.result()
 
-    return jsonify({"courses": result})
+    return jsonify({"courses": result, "assignments": assignments})
 
 
 @app.route("/api/health")
