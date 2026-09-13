@@ -58,26 +58,25 @@ CORS(app, origins=["https://naitikagg2311-tech.github.io"])
 limiter = Limiter(get_remote_address, app=app, default_limits=[])
 
 
-def moodle_login(username, password):
-    """Standard Moodle form login. Returns an authenticated session, or None."""
-    session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0 (attendance-tool)"})
-    login_page = session.get(f"{BASE_URL}/login/index.php", timeout=15)
+def moodle_login(username, password, http):
+    """Standard Moodle form login against a shared session. Returns True/False."""
+    http.headers.update({"User-Agent": "Mozilla/5.0 (attendance-tool)"})
+    login_page = http.get(f"{BASE_URL}/login/index.php", timeout=15)
     match = re.search(r'name="logintoken" value="([^"]+)"', login_page.text)
     logintoken = match.group(1) if match else ""
-    resp = session.post(
+    resp = http.post(
         f"{BASE_URL}/login/index.php",
         data={"username": username, "password": password, "logintoken": logintoken},
         timeout=15,
     )
     if "loginerrors" in resp.text or 'id="login"' in resp.text:
-        return None
-    return session
+        return False
+    return True
 
 
-def get_token(username, password):
+def get_token(username, password, http):
     """Exchanges credentials for a webservice token. Returns None on failure."""
-    resp = requests.post(
+    resp = http.post(
         f"{BASE_URL}/login/token.php",
         data={"username": username, "password": password, "service": "moodle_mobile_app"},
         timeout=15,
@@ -86,8 +85,8 @@ def get_token(username, password):
     return data.get("token")
 
 
-def ws_call(token, function, **params):
-    resp = requests.get(
+def ws_call(http, token, function, **params):
+    resp = http.get(
         f"{BASE_URL}/webservice/rest/server.php",
         params={"wstoken": token, "wsfunction": function, "moodlewsrestformat": "json", **params},
         timeout=15,
@@ -172,37 +171,46 @@ def get_attendance():
     if not username or not password:
         return jsonify({"error": "Username and password required."}), 400
 
-    try:
-        token = get_token(username, password)
-        if not token:
-            return jsonify({"error": "Login failed. Check your username and password."}), 401
+    # Two separate authenticated clients are needed — cookie-session login
+    # for scraping attendance pages (mod_attendance has no webservice
+    # function), and a token for the clean JSON API (course listing).
+    # They're independent, so run them at the same time instead of one
+    # after another — this alone cuts a few seconds off every login.
+    token_http = requests.Session()
+    cookie_http = requests.Session()
 
-        session = moodle_login(username, password)
-        if session is None:
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            token_future = pool.submit(get_token, username, password, token_http)
+            login_future = pool.submit(moodle_login, username, password, cookie_http)
+            token = token_future.result()
+            logged_in = login_future.result()
+
+        if not token or not logged_in:
             return jsonify({"error": "Login failed. Check your username and password."}), 401
 
         # From here on, `username`/`password` are never referenced again —
-        # only `token` and `session` (already-authenticated) are used.
+        # only `token` and `cookie_http` (already-authenticated) are used.
 
         course_map = load_course_map()
-        site_info = ws_call(token, "core_webservice_get_site_info")
+        site_info = ws_call(token_http, token, "core_webservice_get_site_info")
         if "userid" not in site_info:
             return jsonify({"error": "Moodle didn't return a valid session. Try again."}), 502
-        courses = ws_call(token, "core_enrol_get_users_courses", userid=site_info["userid"])
+        courses = ws_call(token_http, token, "core_enrol_get_users_courses", userid=site_info["userid"])
     except requests.exceptions.RequestException:
         return jsonify({"error": "Couldn't reach the LMS right now. Try again shortly."}), 502
 
     def fetch_one_course(course):
         """Everything needed for one course, run in its own thread."""
-        contents = ws_call(token, "core_course_get_contents", courseid=course["id"])
+        contents = ws_call(token_http, token, "core_course_get_contents", courseid=course["id"])
         mapped = match_course(course_map, course.get("fullname", ""))
         entries = []
         for section in contents:
             for module in section.get("modules", []):
                 if module.get("modname") != "attendance":
                     continue
-                resp = session.get(f"{BASE_URL}/mod/attendance/view.php",
-                                    params={"id": module["id"], "view": 5}, timeout=15)
+                resp = cookie_http.get(f"{BASE_URL}/mod/attendance/view.php",
+                                        params={"id": module["id"], "view": 5}, timeout=15)
                 entries.append({
                     "course_id": course["id"],
                     "course_name": course.get("fullname", ""),
