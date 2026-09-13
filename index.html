@@ -34,21 +34,23 @@
     --present: #3F6B4E;
     --absent: #9C4A3A;
     --muted: #6B6558;
+    --warning: #B5772E;
     /* Fixed regardless of theme — the header bar and primary buttons are
        brand chrome, not page content, so they never invert. */
     --surface-dark: #101A2E;
     --surface-dark-hover: #17233D;
   }
   [data-theme="dark"] {
-    --ink: #E8E3D8;
-    --ink-strong: #F6F3EC;
-    --paper: #17191C;
-    --panel: #212326;
-    --hairline: #383B3F;
-    --gold: #C9A227;
-    --present: #6FB08B;
-    --absent: #D98A76;
-    --muted: #9A9690;
+    --ink: #EDE8DD;
+    --ink-strong: #FAF7EF;
+    --paper: #1C1A16;
+    --panel: #262319;
+    --hairline: #403C30;
+    --gold: #D4A83A;
+    --present: #6FAF86;
+    --absent: #E08868;
+    --muted: #A39C8C;
+    --warning: #E0A050;
   }
   * { box-sizing: border-box; }
   body {
@@ -140,11 +142,24 @@
     padding: 9px 10px;
     border: 1px solid var(--hairline);
     background: var(--paper);
+    color: var(--ink);
     font-family: inherit;
     font-size: 0.95rem;
     margin-bottom: 16px;
   }
   input:focus, select:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  /* Autofilled fields (very likely for username/password) get a forced
+     background + text color from the browser itself that our normal CSS
+     can't touch — this neutralizes it so autofilled text stays readable
+     in both themes instead of defaulting to black-on-yellow. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--ink);
+    -webkit-box-shadow: 0 0 0px 1000px var(--paper) inset;
+    box-shadow: 0 0 0px 1000px var(--paper) inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
   button {
     padding: 11px 16px;
     background: var(--surface-dark);
@@ -231,7 +246,7 @@
   .subject-tally.at-risk { color: var(--absent); font-weight: 500; }
   .risk-note.tier-topper { color: var(--gold); font-weight: 500; }
   .risk-note.tier-safe { color: var(--muted); }
-  .risk-note.tier-warning { color: #B5772E; font-weight: 500; }
+  .risk-note.tier-warning { color: var(--warning); font-weight: 500; }
   .risk-note.tier-risk { color: var(--absent); font-weight: 500; }
   .risk-note { font-size: 0.78rem; margin-top: 6px; }
 
@@ -249,8 +264,8 @@
   .risk-card.tier-topper .risk-flavor { color: var(--gold); }
   .risk-card.tier-safe { border-left-color: var(--present); }
   .risk-card.tier-safe .risk-flavor { color: var(--present); }
-  .risk-card.tier-warning { border-left-color: #B5772E; }
-  .risk-card.tier-warning .risk-flavor { color: #B5772E; }
+  .risk-card.tier-warning { border-left-color: var(--warning); }
+  .risk-card.tier-warning .risk-flavor { color: var(--warning); }
   .risk-card.tier-risk { border-left-color: var(--absent); }
   .risk-card.tier-risk .risk-flavor { color: var(--absent); }
 
@@ -266,13 +281,13 @@
   .assignment-course { font-size: 0.82rem; color: var(--muted); }
   .assignment-due { font-size: 0.85rem; text-align: right; white-space: nowrap; }
   .assignment-due .overdue { color: var(--absent); font-weight: 600; }
-  .assignment-due .soon { color: #B5772E; font-weight: 600; }
+  .assignment-due .soon { color: var(--warning); font-weight: 600; }
   .status-badge {
     display: inline-block; font-size: 0.72rem; font-weight: 600;
     padding: 2px 9px; border-radius: 10px; margin-top: 6px;
   }
   .status-badge.submitted { background: rgba(63,107,78,0.15); color: var(--present); }
-  .status-badge.draft { background: rgba(181,119,46,0.15); color: #B5772E; }
+  .status-badge.draft { background: rgba(181,119,46,0.15); color: var(--warning); }
   .status-badge.new { background: rgba(156,74,58,0.15); color: var(--absent); }
   .assignment-detail { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px dotted var(--hairline); }
   .assignment-row.expanded .assignment-detail { display: block; }
