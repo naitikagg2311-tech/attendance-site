@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UG LMS Report</title>
+<script>
+  // Runs synchronously before the page paints, so there's no flash of
+  // the wrong theme. Saved choice always wins; otherwise falls back to
+  // the device's own light/dark setting.
+  (function () {
+    const saved = localStorage.getItem('theme');
+    const theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.dataset.theme = theme;
+  })();
+</script>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#101A2E">
 <link rel="icon" href="icon-192.png">
@@ -24,6 +34,21 @@
     --present: #3F6B4E;
     --absent: #9C4A3A;
     --muted: #6B6558;
+    /* Fixed regardless of theme — the header bar and primary buttons are
+       brand chrome, not page content, so they never invert. */
+    --surface-dark: #101A2E;
+    --surface-dark-hover: #17233D;
+  }
+  [data-theme="dark"] {
+    --ink: #E8E3D8;
+    --ink-strong: #F6F3EC;
+    --paper: #17191C;
+    --panel: #212326;
+    --hairline: #383B3F;
+    --gold: #C9A227;
+    --present: #6FB08B;
+    --absent: #D98A76;
+    --muted: #9A9690;
   }
   * { box-sizing: border-box; }
   body {
@@ -36,7 +61,7 @@
   h1, h2, h3, .serif { font-family: 'Source Serif 4', Georgia, serif; }
 
   header.masthead {
-    background: var(--ink-strong);
+    background: var(--surface-dark);
     color: var(--paper);
     padding: 18px 28px;
     display: flex;
@@ -59,7 +84,7 @@
 
   .ios-banner {
     background: var(--gold);
-    color: var(--ink-strong);
+    color: var(--surface-dark);
     padding: 10px 20px;
     display: flex;
     justify-content: center;
@@ -122,7 +147,7 @@
   input:focus, select:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
   button {
     padding: 11px 16px;
-    background: var(--ink-strong);
+    background: var(--surface-dark);
     color: var(--paper);
     border: none;
     font-family: inherit;
@@ -130,7 +155,7 @@
     cursor: pointer;
   }
   .login-card button { width: 100%; }
-  button:hover { background: var(--ink); }
+  button:hover { background: var(--surface-dark-hover); }
   button:disabled { opacity: 0.6; cursor: default; }
   .error-msg { color: var(--absent); font-size: 0.85rem; margin-top: 12px; }
   .privacy-note {
@@ -372,6 +397,7 @@
 <header class="masthead">
   <h1>UG LMS Report</h1>
   <span class="sub">Bachelor of Management Studies · Attendance &amp; Schedule</span>
+  <button id="theme-toggle-btn" class="logout-btn">🌙 Dark</button>
   <button id="install-btn" class="logout-btn" style="display:none;">📲 Install App</button>
   <button id="logout-btn" class="logout-btn" style="display:none;">Log out</button>
 </header>
@@ -480,6 +506,19 @@
   // loads means that wait happens quietly while you're typing your
   // username and password, instead of after you hit submit.
   fetch(`${API_BASE}/api/health`).catch(() => {});
+
+  // --- Dark/light theme toggle ---
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  function updateThemeButtonLabel() {
+    themeToggleBtn.textContent = document.documentElement.dataset.theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+  }
+  updateThemeButtonLabel(); // reflects whatever the inline head script already applied
+  themeToggleBtn.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('theme', next);
+    updateThemeButtonLabel();
+  });
 
   // Registers the app-shell service worker so the site can be installed
   // to a phone's home screen. Silently does nothing on browsers without
