@@ -268,19 +268,35 @@ def fetch_assignments(token_http, token, courses, course_map, userid):
         if not assignments:
             return []
 
-        sub_params = {f"assignmentids[{i}]": a["id"] for i, a in enumerate(assignments)}
-        sub_data = ws_call(token_http, token, "mod_assign_get_submissions", **sub_params)
+        # mod_assign_get_submissions (bulk, one call for everything) misses
+        # real submissions in some cases — notably group/team assignments,
+        # where Moodle may record the submission under the group rather
+        # than this exact user ID, so a strict userid match silently comes
+        # up empty. mod_assign_get_submission_status is Moodle's own
+        # per-assignment "what's MY status here" function — the same one
+        # the real Moodle UI relies on — so it correctly handles team
+        # submissions, extensions, and other edge cases the bulk check
+        # doesn't. Costs one call per assignment instead of one total, so
+        # they're run in parallel.
+        def get_status(assignment_id):
+            try:
+                resp = ws_call(token_http, token, "mod_assign_get_submission_status", assignid=assignment_id)
+                last = resp.get("lastattempt", {}) or {}
+                # Individual submission first; team submission as fallback
+                # for group assignments where the individual one is empty.
+                status = (last.get("submission") or {}).get("status")
+                if not status:
+                    status = (last.get("teamsubmission") or {}).get("status")
+                return assignment_id, status or "new"
+            except (requests.exceptions.RequestException, KeyError, ValueError, TypeError):
+                return assignment_id, "unknown"
 
-        status_by_assignment = {}
-        for block in sub_data.get("assignments", []):
-            for sub in block.get("submissions", []):
-                if sub.get("userid") == userid:
-                    status_by_assignment[block["assignmentid"]] = sub.get("status", "unknown")
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = pool.map(get_status, [a["id"] for a in assignments])
+        status_by_assignment = dict(results)
 
         for a in assignments:
-            # Moodle's own statuses: 'submitted', 'draft', or 'new' (never
-            # started). Anything not in the map means no submission exists yet.
-            a["submission_status"] = status_by_assignment.get(a["id"], "new")
+            a["submission_status"] = status_by_assignment.get(a["id"], "unknown")
 
         return assignments
     except (requests.exceptions.RequestException, KeyError, ValueError, TypeError):
