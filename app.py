@@ -27,19 +27,29 @@ from bs4 import BeautifulSoup
 
 BASE_URL = "https://uglms.iimk.ac.in"
 
-# Naitik's shared Sem-III schedule sheet — public, view-only, no login needed.
-SCHEDULE_SHEET_ID = "1wbVXe5Ivk5UIS8anrEgn-V3LHQKDkLy3uHfqpe7mN-I"
-SCHEDULE_GID = "278743392"
-
-# Maps the short codes used in the schedule sheet (e.g. "OB-7") to full
-# subject names. Extend this if new subjects/codes show up.
-SUBJECT_CODES = {
-    "WIH": "World and Indian History",
-    "OB": "Organisational Behaviour",
-    "ATAP": "Algorithmic Thinking and Programming",
-    "MO": "Mathematical Optimization",
-    "ITL": "Introduction to Law",
-    "CP": "Community Project",
+# One schedule config per batch year — each batch sees its own timetable,
+# picked automatically from the batch year in their username (see
+# BATCH_CURRENT_SEMESTER below for how that year is extracted). Add a
+# new entry here whenever a new batch's schedule sheet is shared; nothing
+# else in the code needs to change.
+SCHEDULES = {
+    "25": {  # Batch 25 — Semester 3 (seniors)
+        "sheet_id": "1wbVXe5Ivk5UIS8anrEgn-V3LHQKDkLy3uHfqpe7mN-I",
+        "gid": "278743392",
+        "subject_codes": {
+            "WIH": "World and Indian History",
+            "OB": "Organisational Behaviour",
+            "ATAP": "Algorithmic Thinking and Programming",
+            "MO": "Mathematical Optimization",
+            "ITL": "Introduction to Law",
+            "CP": "Community Project",
+        },
+    },
+    "26": {  # Batch 26 — Semester 1 (juniors) — sheet link pending
+        "sheet_id": None,
+        "gid": None,
+        "subject_codes": {},
+    },
 }
 
 LANGUAGE_COLUMN = {
@@ -63,15 +73,20 @@ BATCH_CURRENT_SEMESTER = {
 USERNAME_BATCH_RE = re.compile(r"bms(\d{2})", re.IGNORECASE)
 
 
+def batch_year_from_username(username):
+    """'bms25naitik' -> '25'. Returns None if it doesn't match the pattern."""
+    match = USERNAME_BATCH_RE.search(username or "")
+    return match.group(1) if match else None
+
+
 def ongoing_semester_for_username(username):
     """Returns the batch's current semester from their username, or None
     if the username doesn't match the expected pattern or the batch year
     isn't in BATCH_CURRENT_SEMESTER yet (a brand new batch not added
     here yet, for example)."""
-    match = USERNAME_BATCH_RE.search(username or "")
-    if not match:
-        return None
-    return BATCH_CURRENT_SEMESTER.get(match.group(1))
+    year = batch_year_from_username(username)
+    return BATCH_CURRENT_SEMESTER.get(year) if year else None
+
 
 app = Flask(__name__)
 # Only allow requests from the actual frontend's origin — replace this
@@ -345,7 +360,7 @@ def health():
     return jsonify({"status": "ok"})
 
 
-def parse_code(raw):
+def parse_code(raw, subject_codes):
     """
     'MO-25 (AR)' -> ('MO', 'Mathematical Optimization', '25 (AR)', True)
     'CP 11'      -> ('CP', 'Community Project', '11', True)
@@ -355,11 +370,12 @@ def parse_code(raw):
     isn't consistent about which separator it uses per subject.
     Anything that isn't a known code (holidays, exam periods, admin
     sessions like POSH/Anti-Ragging, 'Buffer/Quiz') is returned as-is,
-    flagged as not a real academic subject.
+    flagged as not a real academic subject. `subject_codes` is whichever
+    batch's code map applies (each batch's schedule uses different codes).
     """
     raw = raw.strip()
     upper = raw.upper()
-    for code, name in SUBJECT_CODES.items():
+    for code, name in subject_codes.items():
         if upper == code or upper.startswith(code + " ") or upper.startswith(code + "-"):
             rest = raw[len(code):].strip(" -")
             return code, name, rest, True
@@ -415,44 +431,48 @@ def format_time_range(raw_time):
         return raw_time
 
 
-_schedule_cache = {"rows": None, "fetched_at": 0}
+_schedule_cache = {}  # sheet_id -> {"rows": [...], "fetched_at": ts}
 _schedule_cache_lock = threading.Lock()
 SCHEDULE_CACHE_TTL = 300  # 5 minutes — the sheet changes at most once a day, so a
                           # short cache makes almost every visit instant without
                           # ever showing genuinely stale data for long.
 
 
-def fetch_schedule_sheet():
+def fetch_schedule_sheet(sheet_id, gid):
     """
     Downloads the full sheet as CSV — every row, no virtualization limits.
-    Cached for SCHEDULE_CACHE_TTL seconds so that repeated visits (by the
-    same student switching tabs, or different batchmates) don't each
-    trigger a fresh round-trip to Google for data that rarely changes.
+    Cached per sheet_id for SCHEDULE_CACHE_TTL seconds so that repeated
+    visits (by the same student switching tabs, or different batchmates)
+    don't each trigger a fresh round-trip to Google for data that rarely
+    changes. Each batch's sheet gets its own independent cache entry.
     """
     now = time.time()
     with _schedule_cache_lock:
-        if _schedule_cache["rows"] is not None and (now - _schedule_cache["fetched_at"]) < SCHEDULE_CACHE_TTL:
-            return _schedule_cache["rows"]
+        cached = _schedule_cache.get(sheet_id)
+        if cached and (now - cached["fetched_at"]) < SCHEDULE_CACHE_TTL:
+            return cached["rows"]
 
-    url = f"https://docs.google.com/spreadsheets/d/{SCHEDULE_SHEET_ID}/export"
-    resp = requests.get(url, params={"format": "csv", "gid": SCHEDULE_GID}, timeout=15)
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export"
+    resp = requests.get(url, params={"format": "csv", "gid": gid}, timeout=15)
     resp.raise_for_status()
     rows = list(csv.reader(io.StringIO(resp.text)))
 
     with _schedule_cache_lock:
-        _schedule_cache["rows"] = rows
-        _schedule_cache["fetched_at"] = now
+        _schedule_cache[sheet_id] = {"rows": rows, "fetched_at": now}
     return rows
 
 
-def build_personal_schedule(section, language):
+def build_personal_schedule(section, language, schedule_config):
     """
     section: "A" or "B"
     language: one of "japanese", "german", "french", "spanish"
+    schedule_config: one of the SCHEDULES entries (sheet_id/gid/subject_codes
+    for this student's batch)
     Returns every session for that student, in order, each tagged with
     its subject and a parsed datetime for sorting/filtering.
     """
-    rows = fetch_schedule_sheet()
+    rows = fetch_schedule_sheet(schedule_config["sheet_id"], schedule_config["gid"])
+    subject_codes = schedule_config["subject_codes"]
 
     header_idx = None
     for i, row in enumerate(rows):
@@ -488,7 +508,7 @@ def build_personal_schedule(section, language):
                 prefix, session_no, is_subject = "FLC", raw.split("-")[-1].strip(), True
                 name = f"Foreign Language ({language.capitalize()})"
             else:
-                prefix, name, session_no, is_subject = parse_code(raw)
+                prefix, name, session_no, is_subject = parse_code(raw, subject_codes)
             try:
                 start_time = time_str.split("-")[0].strip()
                 dt = datetime.strptime(f"{date_str} {start_time}", "%A, %d %B, %Y %H:%M")
@@ -516,10 +536,20 @@ def build_personal_schedule(section, language):
 def get_schedule():
     section = request.args.get("section", "A")
     language = request.args.get("language", "")
+    username = request.args.get("username", "")
     if language.lower() not in LANGUAGE_COLUMN:
         return jsonify({"error": "language must be one of: japanese, german, french, spanish"}), 400
 
-    sessions = build_personal_schedule(section, language)
+    batch_year = batch_year_from_username(username)
+    schedule_config = SCHEDULES.get(batch_year)
+    if not schedule_config or not schedule_config.get("sheet_id"):
+        return jsonify({"error": "No schedule is set up yet for your batch."}), 404
+
+    try:
+        sessions = build_personal_schedule(section, language, schedule_config)
+    except requests.exceptions.RequestException:
+        return jsonify({"error": "Couldn't reach the schedule sheet right now. Try again shortly."}), 502
+
     now = datetime.now().isoformat()
 
     upcoming = [s for s in sessions if s["datetime"] and s["datetime"] >= now]
