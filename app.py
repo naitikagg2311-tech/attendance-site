@@ -55,6 +55,7 @@ SCHEDULES = {
             "IAF": "Introduction to Accounting and Finance",
             "FEA": "Fundamentals of Economic Analysis",
             "YAP": "Yoga Asana and Pranayama",
+            "CIP": "Computing in Practice",
         },
     },
 }
