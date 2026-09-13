@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UG LMS Report</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#101A2E">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="UG LMS">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -413,6 +420,15 @@
   // loads means that wait happens quietly while you're typing your
   // username and password, instead of after you hit submit.
   fetch(`${API_BASE}/api/health`).catch(() => {});
+
+  // Registers the app-shell service worker so the site can be installed
+  // to a phone's home screen. Silently does nothing on browsers without
+  // support (e.g. some in-app browsers) — never blocks the page.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
 
   // Every piece of text below ultimately comes from an external source —
   // Moodle's attendance pages, or the shared schedule Google Sheet, which
