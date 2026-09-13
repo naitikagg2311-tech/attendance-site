@@ -14,6 +14,8 @@ import re
 import csv
 import json
 import io
+import time
+import threading
 import requests
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -309,12 +311,34 @@ def format_time_range(raw_time):
         return raw_time
 
 
+_schedule_cache = {"rows": None, "fetched_at": 0}
+_schedule_cache_lock = threading.Lock()
+SCHEDULE_CACHE_TTL = 300  # 5 minutes — the sheet changes at most once a day, so a
+                          # short cache makes almost every visit instant without
+                          # ever showing genuinely stale data for long.
+
+
 def fetch_schedule_sheet():
-    """Downloads the full sheet as CSV — every row, no virtualization limits."""
+    """
+    Downloads the full sheet as CSV — every row, no virtualization limits.
+    Cached for SCHEDULE_CACHE_TTL seconds so that repeated visits (by the
+    same student switching tabs, or different batchmates) don't each
+    trigger a fresh round-trip to Google for data that rarely changes.
+    """
+    now = time.time()
+    with _schedule_cache_lock:
+        if _schedule_cache["rows"] is not None and (now - _schedule_cache["fetched_at"]) < SCHEDULE_CACHE_TTL:
+            return _schedule_cache["rows"]
+
     url = f"https://docs.google.com/spreadsheets/d/{SCHEDULE_SHEET_ID}/export"
     resp = requests.get(url, params={"format": "csv", "gid": SCHEDULE_GID}, timeout=15)
     resp.raise_for_status()
-    return list(csv.reader(io.StringIO(resp.text)))
+    rows = list(csv.reader(io.StringIO(resp.text)))
+
+    with _schedule_cache_lock:
+        _schedule_cache["rows"] = rows
+        _schedule_cache["fetched_at"] = now
+    return rows
 
 
 def build_personal_schedule(section, language):
