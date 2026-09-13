@@ -39,6 +39,7 @@
        brand chrome, not page content, so they never invert. */
     --surface-dark: #101A2E;
     --surface-dark-hover: #17233D;
+    --text-on-dark: #F6F3EC;
   }
   [data-theme="dark"] {
     --ink: #EDE8DD;
@@ -64,7 +65,7 @@
 
   header.masthead {
     background: var(--surface-dark);
-    color: var(--paper);
+    color: var(--text-on-dark);
     padding: 18px 28px;
     display: flex;
     align-items: baseline;
@@ -82,7 +83,7 @@
     border: 1px solid rgba(255,255,255,0.25);
     border-radius: 3px;
   }
-  .logout-btn:hover { color: var(--paper); border-color: rgba(255,255,255,0.5); }
+  .logout-btn:hover { color: var(--text-on-dark); border-color: rgba(255,255,255,0.5); }
 
   .ios-banner {
     background: var(--gold);
@@ -163,7 +164,7 @@
   button {
     padding: 11px 16px;
     background: var(--surface-dark);
-    color: var(--paper);
+    color: var(--text-on-dark);
     border: none;
     font-family: inherit;
     font-size: 0.95rem;
