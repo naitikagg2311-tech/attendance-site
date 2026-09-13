@@ -199,6 +199,8 @@ def get_attendance():
         if "userid" not in site_info:
             return jsonify({"error": "Moodle didn't return a valid session. Try again."}), 502
         courses = ws_call(token_http, token, "core_enrol_get_users_courses", userid=site_info["userid"])
+        if not isinstance(courses, list):
+            return jsonify({"error": "Moodle returned an unexpected response for your courses. Try again."}), 502
     except requests.exceptions.RequestException:
         return jsonify({"error": "Couldn't reach the LMS right now. Try again shortly."}), 502
 
