@@ -460,6 +460,12 @@
   </div>
 
   <div id="assignments-panel" style="display:none;">
+    <div class="schedule-setup" style="margin-bottom:20px;">
+      <div>
+        <label for="assignment-semester-select">Your current semester</label>
+        <select id="assignment-semester-select"></select>
+      </div>
+    </div>
     <div id="assignments-list"></div>
   </div>
 </main>
@@ -531,6 +537,7 @@
 
   let allCourses = [];
   let allAssignments = [];
+  let serverOngoingSemester = null;
   let activeSemester = null;
 
   const loginForm = document.getElementById('login-form');
@@ -569,6 +576,7 @@
 
       allCourses = data.courses || [];
       allAssignments = data.assignments || [];
+      serverOngoingSemester = data.ongoing_semester ?? null;
       document.getElementById('password').value = '';
 
       renderDashboard();
@@ -591,6 +599,7 @@
     // showing the login screen again — no request needed.
     allCourses = [];
     allAssignments = [];
+    serverOngoingSemester = null;
     latestScheduleData = null;
     activeSemester = null;
     activeRiskSemester = null;
@@ -929,27 +938,57 @@
   }
 
   /**
-   * A student's course list includes every semester they've ever taken,
-   * not just the current one — so the highest semester number present
-   * is a reliable stand-in for "which semester is ongoing right now",
-   * and it self-adjusts per batch without any hardcoding (Batch 01 on
-   * Sem 3, Batch 02 on Sem 1, etc. each just see their own highest).
+   * Best guess for which semester is ongoing, in priority order:
+   * 1. What the student explicitly picked before (localStorage) — always wins.
+   * 2. The server's answer, derived from the batch year in their username
+   *    (e.g. "bms25naitik" -> Batch 25 -> Sem 3) — reliable for any batch,
+   *    with zero dependence on course_map.json being filled in.
+   * 3. The highest semester number present in their own course data, as
+   *    a last-resort fallback if the username didn't match the expected
+   *    pattern (e.g. a staff/admin account) or that batch year hasn't
+   *    been added to BATCH_CURRENT_SEMESTER on the backend yet.
+   * Either way, the student can always override it in the dropdown.
    */
-  function getOngoingSemester() {
+  function guessOngoingSemester() {
+    if (serverOngoingSemester != null) return serverOngoingSemester;
     const numbered = allCourses.map(c => c.semester).filter(s => typeof s === 'number');
     return numbered.length ? Math.max(...numbered) : null;
   }
 
+  function setupAssignmentSemesterSelect() {
+    const selectEl = document.getElementById('assignment-semester-select');
+    const numbered = [...new Set(allCourses.map(c => c.semester).filter(s => typeof s === 'number'))].sort((a, b) => a - b);
+    // Always offer at least 1-4 as options, even if this student's own
+    // courses don't cover that range yet (e.g. a first-semester junior
+    // whose course_map entries don't exist yet still needs to be able
+    // to pick '1').
+    const options = [...new Set([...numbered, 1, 2, 3, 4])].sort((a, b) => a - b);
+
+    const saved = localStorage.getItem('current_semester');
+    const guess = guessOngoingSemester();
+    const initial = saved ? parseInt(saved, 10) : guess;
+
+    selectEl.innerHTML = options.map(n => `<option value="${n}">Semester ${n}</option>`).join('');
+    selectEl.value = options.includes(initial) ? initial : options[0];
+    localStorage.setItem('current_semester', selectEl.value);
+  }
+
+  document.getElementById('assignment-semester-select').addEventListener('change', (e) => {
+    localStorage.setItem('current_semester', e.target.value);
+    renderAssignmentsPanel();
+  });
+
   function renderAssignmentsPanel() {
+    setupAssignmentSemesterSelect();
+    const ongoing = parseInt(document.getElementById('assignment-semester-select').value, 10);
     const listEl = document.getElementById('assignments-list');
-    const ongoing = getOngoingSemester();
     // Keep unmapped/unclassified subjects too (semester is null) — only
-    // filter out ones we're CONFIRMED belong to a past semester.
+    // filter out ones we're CONFIRMED belong to a different semester.
     const inScope = allAssignments.filter(a => a.semester == null || a.semester === ongoing);
     const items = [...inScope].sort((a, b) => (a.duedate || Infinity) - (b.duedate || Infinity));
 
     if (!items.length) {
-      listEl.innerHTML = `<div class="empty-state">No assignments found for the current semester.</div>`;
+      listEl.innerHTML = `<div class="empty-state">No assignments found for the selected semester.</div>`;
       return;
     }
 
