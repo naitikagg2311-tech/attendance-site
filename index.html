@@ -988,16 +988,23 @@
   // --- Assignments ---
   const STATUS_LABELS = { submitted: 'Submitted', draft: 'Draft saved', new: 'Not submitted', unknown: 'Status unknown' };
 
-  function formatDueDate(unixSeconds) {
+  function formatDueDate(unixSeconds, submissionStatus) {
     if (!unixSeconds) return { label: 'No due date', cls: '' };
     const due = new Date(unixSeconds * 1000);
     const now = new Date();
     const diffHours = (due - now) / (1000 * 60 * 60);
     const dateStr = due.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
     const timeStr = due.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    if (diffHours < 0) return { label: `Overdue — was due ${dateStr}, ${timeStr}`, cls: 'overdue' };
-    if (diffHours < 24) return { label: `Due today, ${timeStr}`, cls: 'soon' };
-    if (diffHours < 72) return { label: `Due ${dateStr}, ${timeStr}`, cls: 'soon' };
+    const isSubmitted = submissionStatus === 'submitted';
+
+    if (diffHours < 0) {
+      // Already submitted — the deadline passing is no longer alarming,
+      // so this shouldn't read as 'Overdue' just because the clock ran out.
+      if (isSubmitted) return { label: `Submitted — was due ${dateStr}, ${timeStr}`, cls: '' };
+      return { label: `Overdue — was due ${dateStr}, ${timeStr}`, cls: 'overdue' };
+    }
+    if (diffHours < 24) return { label: `Due today, ${timeStr}`, cls: isSubmitted ? '' : 'soon' };
+    if (diffHours < 72) return { label: `Due ${dateStr}, ${timeStr}`, cls: isSubmitted ? '' : 'soon' };
     return { label: `Due ${dateStr}, ${timeStr}`, cls: '' };
   }
 
@@ -1061,7 +1068,7 @@
     }
 
     listEl.innerHTML = items.map(a => {
-      const due = formatDueDate(a.duedate);
+      const due = formatDueDate(a.duedate, a.submission_status);
       const statusLabel = STATUS_LABELS[a.submission_status] || STATUS_LABELS.unknown;
       const checked = isPersonallyChecked(a.id);
       return `
