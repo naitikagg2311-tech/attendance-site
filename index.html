@@ -434,7 +434,7 @@
           <option value="B">Section B</option>
         </select>
       </div>
-      <div>
+      <div id="language-field">
         <label for="language-select">Foreign language</label>
         <select id="language-select">
           <option value="spanish">Spanish</option>
@@ -538,6 +538,7 @@
   let allCourses = [];
   let allAssignments = [];
   let serverOngoingSemester = null;
+  let hasLanguageTrack = true;
   let loggedInUsername = '';
   let activeSemester = null;
 
@@ -578,6 +579,7 @@
       allCourses = data.courses || [];
       allAssignments = data.assignments || [];
       serverOngoingSemester = data.ongoing_semester ?? null;
+      hasLanguageTrack = data.has_language_track ?? true;
       // Kept only in memory, cleared on logout — needed so the Schedule
       // tab's separate request can tell the backend which batch's
       // timetable to serve. Never the password, which is wiped below.
@@ -605,10 +607,12 @@
     allCourses = [];
     allAssignments = [];
     serverOngoingSemester = null;
+    hasLanguageTrack = true;
     loggedInUsername = '';
     latestScheduleData = null;
     activeSemester = null;
     activeRiskSemester = null;
+    document.getElementById('language-field').style.display = 'block';
 
     document.getElementById('subject-list').innerHTML = '';
     document.getElementById('semester-tabs').innerHTML = '';
@@ -644,8 +648,11 @@
     document.getElementById('schedule-panel').style.display = panel === 'schedule' ? 'block' : 'none';
     document.getElementById('risk-panel').style.display = panel === 'risk' ? 'block' : 'none';
     document.getElementById('assignments-panel').style.display = panel === 'assignments' ? 'block' : 'none';
-    if (panel === 'schedule' && !document.getElementById('schedule-content').dataset.loaded) {
-      loadSchedule();
+    if (panel === 'schedule') {
+      document.getElementById('language-field').style.display = hasLanguageTrack ? 'block' : 'none';
+      if (!document.getElementById('schedule-content').dataset.loaded) {
+        loadSchedule();
+      }
     }
     if (panel === 'risk') {
       renderRiskPanel();
