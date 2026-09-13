@@ -57,6 +57,23 @@
   }
   .logout-btn:hover { color: var(--paper); border-color: rgba(255,255,255,0.5); }
 
+  .ios-banner {
+    background: var(--gold);
+    color: var(--ink-strong);
+    padding: 10px 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.85rem;
+  }
+  .ios-banner button {
+    all: unset;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 4px;
+  }
+
   main { max-width: 880px; margin: 0 auto; padding: 0 24px 80px; }
 
   /* --- Login / hero --- */
@@ -329,8 +346,14 @@
 <header class="masthead">
   <h1>UG LMS Report</h1>
   <span class="sub">Bachelor of Management Studies · Attendance &amp; Schedule</span>
+  <button id="install-btn" class="logout-btn" style="display:none;">📲 Install App</button>
   <button id="logout-btn" class="logout-btn" style="display:none;">Log out</button>
 </header>
+
+<div id="ios-install-banner" class="ios-banner" style="display:none;">
+  <span>On iPhone? Tap <strong>Share</strong> then <strong>"Add to Home Screen"</strong> to install this app.</span>
+  <button id="ios-banner-dismiss">✕</button>
+</div>
 
 <div id="login-view">
   <div class="hero">
@@ -429,6 +452,40 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     });
   }
+
+  // --- App install (Chrome/Android supports a real in-page prompt;
+  // iOS Safari has no such API, so it gets a one-time instructional
+  // banner instead — this is an Apple restriction, not a choice here.)
+  let deferredInstallPrompt = null;
+  const installBtn = document.getElementById('install-btn');
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    installBtn.style.display = 'inline-block';
+  });
+
+  installBtn.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installBtn.style.display = 'none';
+  });
+
+  window.addEventListener('appinstalled', () => {
+    installBtn.style.display = 'none';
+  });
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true;
+  if (isIOS && !isStandalone && !localStorage.getItem('ios_install_banner_dismissed')) {
+    document.getElementById('ios-install-banner').style.display = 'flex';
+  }
+  document.getElementById('ios-banner-dismiss').addEventListener('click', () => {
+    document.getElementById('ios-install-banner').style.display = 'none';
+    localStorage.setItem('ios_install_banner_dismissed', 'true');
+  });
 
   // Every piece of text below ultimately comes from an external source —
   // Moodle's attendance pages, or the shared schedule Google Sheet, which
