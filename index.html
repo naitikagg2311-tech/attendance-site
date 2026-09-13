@@ -1120,7 +1120,7 @@
       populateSubjectFilter(data);
       renderSchedule(data);
     } catch (err) {
-      contentEl.innerHTML = `<div class="empty-state"><h3 class="serif">Couldn't load the schedule</h3>${err.message}</div>`;
+      contentEl.innerHTML = `<div class="empty-state"><h3 class="serif">Couldn't load the schedule</h3>${esc(err.message)}</div>`;
     }
   }
 
