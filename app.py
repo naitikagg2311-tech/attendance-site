@@ -45,10 +45,17 @@ SCHEDULES = {
             "CP": "Community Project",
         },
     },
-    "26": {  # Batch 26 — Semester 1 (juniors) — sheet link pending
-        "sheet_id": None,
-        "gid": None,
-        "subject_codes": {},
+    "26": {  # Batch 26 — Semester 1 (juniors)
+        "sheet_id": "11qYtZ5q_-QsWGg2d3OuSezakxz83oGJvD5gCwY-ymWQ",
+        "gid": "0",
+        "subject_codes": {
+            "BM": "Business and Management",
+            "PL": "Poetry and Literature",
+            "SA": "Sociology and Anthropology",
+            "IAF": "Introduction to Accounting and Finance",
+            "FEA": "Fundamentals of Economic Analysis",
+            "YAP": "Yoga Asana and Pranayama",
+        },
     },
 }
 
@@ -172,13 +179,15 @@ def parse_attendance_table(html):
 
 
 def _normalize(name):
-    """Lowercase, collapse whitespace/dashes/punctuation, and drop the
-    section/batch letter entirely — 'Section A' vs 'Section B' vs
-    'Batch A' must never be the reason two names fail to match, since
-    the same shared site serves students in different sections."""
+    """Lowercase, collapse whitespace/dashes/punctuation, and drop both
+    the section/batch letter ('Section A' vs 'Section B') and any cohort
+    prefix ('BMS01' vs 'BMS02') — the same course_map entry needs to
+    match the same real-world subject regardless of which section or
+    which batch's course listing it came from."""
     name = name.lower()
     name = re.sub(r"[-–—_,./]", " ", name)
     name = re.sub(r"\b(section|sec|batch)\s+[a-z]\b", " ", name)
+    name = re.sub(r"\bbms\d+\b", " ", name)
     name = re.sub(r"\s+", " ", name).strip()
     return name
 
@@ -401,17 +410,19 @@ def format_date_nice(date_str):
 
 def format_time_range(raw_time):
     """
-    '14:30-15:30' -> '2:30-3:30 pm'. The sheet's own hours are ambiguous
-    below 10 (e.g. '01:30' really means 1:30 PM) because every class
-    slot in this schedule falls between 10 AM and 6 PM — so any hour
-    written below 10 is normalized up by 12 before formatting.
+    '14:30-15:30' -> '2:30-3:30 pm'. Some batches' sheets write hours
+    ambiguously below 10 (e.g. '01:30' really means 1:30 PM) rather than
+    using 24-hour notation consistently. Specifically hours 1-8 are the
+    ambiguous ones — 9, 10, 11 are always genuine morning classes across
+    every batch's schedule seen so far (the junior Sem-I day starts at
+    9 AM), so those are left alone; only 1-8 get bumped by 12.
     """
     try:
         start_raw, end_raw = raw_time.split("-")
 
         def norm(t):
             h, m = map(int, t.strip().split(":"))
-            if h < 10:
+            if 1 <= h <= 8:
                 h += 12
             return h, m
 
@@ -476,7 +487,7 @@ def build_personal_schedule(section, language, schedule_config):
 
     header_idx = None
     for i, row in enumerate(rows):
-        if len(row) >= 3 and row[0].strip() == "Date" and row[1].strip() == "Day":
+        if row and row[0].strip() == "Date":
             header_idx = i
             break
     if header_idx is None:
@@ -493,8 +504,16 @@ def build_personal_schedule(section, language, schedule_config):
     for row in rows[header_idx + 1:]:
         if not row or date_col >= len(row) or not row[date_col].strip():
             continue
-        date_str, day_str = row[date_col].strip(), row[day_col].strip()
-        time_str = row[time_col].strip() if time_col < len(row) else ""
+        date_str = row[date_col].strip()
+        # Some batches' sheets have a separate 'Day' column; others (like
+        # the junior Sem-I sheet) don't, but the weekday is always spelled
+        # out at the start of the date text itself either way — e.g.
+        # "Monday, 7 September, 2026" — so that's used as the fallback.
+        if day_col is not None and day_col < len(row) and row[day_col].strip():
+            day_str = row[day_col].strip()
+        else:
+            day_str = date_str.split(",")[0].strip()
+        time_str = row[time_col].strip() if time_col is not None and time_col < len(row) else ""
 
         for col in filter(None, [section_col, language_col]):
             if col >= len(row):
