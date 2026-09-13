@@ -229,6 +229,32 @@
   .risk-card.tier-risk { border-left-color: var(--absent); }
   .risk-card.tier-risk .risk-flavor { color: var(--absent); }
 
+  #assignments-list { display: flex; flex-direction: column; gap: 0; }
+  .assignment-row {
+    border-bottom: 1px solid var(--hairline);
+    padding: 16px 4px;
+    cursor: pointer;
+  }
+  .assignment-row:hover { background: rgba(169,130,47,0.05); }
+  .assignment-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .assignment-head h3 { margin: 0 0 4px; font-size: 1.02rem; font-weight: 600; }
+  .assignment-course { font-size: 0.82rem; color: var(--muted); }
+  .assignment-due { font-size: 0.85rem; text-align: right; white-space: nowrap; }
+  .assignment-due .overdue { color: var(--absent); font-weight: 600; }
+  .assignment-due .soon { color: #B5772E; font-weight: 600; }
+  .status-badge {
+    display: inline-block; font-size: 0.72rem; font-weight: 600;
+    padding: 2px 9px; border-radius: 10px; margin-top: 6px;
+  }
+  .status-badge.submitted { background: rgba(63,107,78,0.15); color: var(--present); }
+  .status-badge.draft { background: rgba(181,119,46,0.15); color: #B5772E; }
+  .status-badge.new { background: rgba(156,74,58,0.15); color: var(--absent); }
+  .assignment-detail { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px dotted var(--hairline); }
+  .assignment-row.expanded .assignment-detail { display: block; }
+  .assignment-intro { font-size: 0.9rem; line-height: 1.6; margin: 0 0 14px; white-space: pre-wrap; }
+  .personal-check { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted); }
+  .personal-check input { width: auto; margin: 0; }
+
   .session-list { margin-top: 14px; display: none; }
   .subject-row.expanded .session-list { display: block; }
   .session-row {
@@ -388,6 +414,7 @@
     <button class="active" data-panel="register">Report</button>
     <button data-panel="schedule">Schedule</button>
     <button data-panel="risk">Attendance Risk</button>
+    <button data-panel="assignments">Assignments</button>
   </nav>
 
   <div id="register-panel">
@@ -430,6 +457,10 @@
   <div id="risk-panel" style="display:none;">
     <nav class="tabs" id="risk-semester-tabs"></nav>
     <div id="risk-list"></div>
+  </div>
+
+  <div id="assignments-panel" style="display:none;">
+    <div id="assignments-list"></div>
   </div>
 </main>
 
@@ -499,6 +530,7 @@
   }
 
   let allCourses = [];
+  let allAssignments = [];
   let activeSemester = null;
 
   const loginForm = document.getElementById('login-form');
@@ -536,6 +568,7 @@
       }
 
       allCourses = data.courses || [];
+      allAssignments = data.assignments || [];
       document.getElementById('password').value = '';
 
       renderDashboard();
@@ -557,6 +590,7 @@
     // just means clearing what's sitting in this tab's memory and
     // showing the login screen again — no request needed.
     allCourses = [];
+    allAssignments = [];
     latestScheduleData = null;
     activeSemester = null;
     activeRiskSemester = null;
@@ -567,6 +601,7 @@
     delete document.getElementById('schedule-content').dataset.loaded;
     document.getElementById('risk-list').innerHTML = '';
     document.getElementById('risk-semester-tabs').innerHTML = '';
+    document.getElementById('assignments-list').innerHTML = '';
 
     // Reset the main tabs back to Report for the next login.
     document.querySelectorAll('#main-tabs button').forEach(b => b.classList.remove('active'));
@@ -574,6 +609,7 @@
     document.getElementById('register-panel').style.display = 'block';
     document.getElementById('schedule-panel').style.display = 'none';
     document.getElementById('risk-panel').style.display = 'none';
+    document.getElementById('assignments-panel').style.display = 'none';
 
     document.getElementById('username').value = '';
     document.getElementById('password').value = '';
@@ -583,7 +619,7 @@
     document.getElementById('logout-btn').style.display = 'none';
   });
 
-  // --- Main tab switching (Report / Schedule / Risk) ---
+  // --- Main tab switching (Report / Schedule / Risk / Assignments) ---
   document.getElementById('main-tabs').addEventListener('click', (e) => {
     if (e.target.tagName !== 'BUTTON') return;
     const panel = e.target.dataset.panel;
@@ -592,11 +628,15 @@
     document.getElementById('register-panel').style.display = panel === 'register' ? 'block' : 'none';
     document.getElementById('schedule-panel').style.display = panel === 'schedule' ? 'block' : 'none';
     document.getElementById('risk-panel').style.display = panel === 'risk' ? 'block' : 'none';
+    document.getElementById('assignments-panel').style.display = panel === 'assignments' ? 'block' : 'none';
     if (panel === 'schedule' && !document.getElementById('schedule-content').dataset.loaded) {
       loadSchedule();
     }
     if (panel === 'risk') {
       renderRiskPanel();
+    }
+    if (panel === 'assignments') {
+      renderAssignmentsPanel();
     }
   });
 
@@ -866,6 +906,73 @@
         <p class="risk-stats">${esc(risk.stats)}</p>
       </div>
     `).join('');
+  }
+
+  // --- Assignments ---
+  const STATUS_LABELS = { submitted: 'Submitted', draft: 'Draft saved', new: 'Not submitted', unknown: 'Status unknown' };
+
+  function formatDueDate(unixSeconds) {
+    if (!unixSeconds) return { label: 'No due date', cls: '' };
+    const due = new Date(unixSeconds * 1000);
+    const now = new Date();
+    const diffHours = (due - now) / (1000 * 60 * 60);
+    const dateStr = due.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    const timeStr = due.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    if (diffHours < 0) return { label: `Overdue — was due ${dateStr}, ${timeStr}`, cls: 'overdue' };
+    if (diffHours < 24) return { label: `Due today, ${timeStr}`, cls: 'soon' };
+    if (diffHours < 72) return { label: `Due ${dateStr}, ${timeStr}`, cls: 'soon' };
+    return { label: `Due ${dateStr}, ${timeStr}`, cls: '' };
+  }
+
+  function isPersonallyChecked(id) {
+    return localStorage.getItem(`assignment_done_${id}`) === 'true';
+  }
+
+  function renderAssignmentsPanel() {
+    const listEl = document.getElementById('assignments-list');
+    const items = [...allAssignments].sort((a, b) => (a.duedate || Infinity) - (b.duedate || Infinity));
+
+    if (!items.length) {
+      listEl.innerHTML = `<div class="empty-state">No assignments found across your courses.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = items.map(a => {
+      const due = formatDueDate(a.duedate);
+      const statusLabel = STATUS_LABELS[a.submission_status] || STATUS_LABELS.unknown;
+      const checked = isPersonallyChecked(a.id);
+      return `
+        <div class="assignment-row" data-id="${a.id}">
+          <div class="assignment-head">
+            <div>
+              <h3>${esc(a.name)}</h3>
+              <div class="assignment-course">${esc(a.display_name)}</div>
+              <span class="status-badge ${esc(a.submission_status)}">${esc(statusLabel)}</span>
+            </div>
+            <div class="assignment-due"><span class="${due.cls}">${esc(due.label)}</span></div>
+          </div>
+          <div class="assignment-detail">
+            <p class="assignment-intro">${esc(a.intro) || 'No description provided.'}</p>
+            <label class="personal-check">
+              <input type="checkbox" class="personal-check-box" data-id="${a.id}" ${checked ? 'checked' : ''}>
+              I've personally checked this off (just a reminder for you — not synced with Moodle)
+            </label>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.assignment-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.classList.contains('personal-check-box')) return;
+        row.classList.toggle('expanded');
+      });
+    });
+    listEl.querySelectorAll('.personal-check-box').forEach(box => {
+      box.addEventListener('change', () => {
+        localStorage.setItem(`assignment_done_${box.dataset.id}`, box.checked ? 'true' : 'false');
+      });
+    });
   }
 
   function renderSubjectList() {
