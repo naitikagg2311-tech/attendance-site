@@ -396,6 +396,13 @@
   // Point this at your deployed backend before publishing.
   const API_BASE = "https://attendance-site-bop1.onrender.com";
 
+  // Render's free tier spins the server down after inactivity — the
+  // first request after that wakes it back up, which can take 20-40
+  // seconds on its own. Pinging a harmless endpoint the instant the page
+  // loads means that wait happens quietly while you're typing your
+  // username and password, instead of after you hit submit.
+  fetch(`${API_BASE}/api/health`).catch(() => {});
+
   // Every piece of text below ultimately comes from an external source —
   // Moodle's attendance pages, or the shared schedule Google Sheet, which
   // may be editable by people other than you. Anything inserted into the
@@ -422,6 +429,13 @@
     loginBtn.disabled = true;
     loginBtn.textContent = 'Checking...';
 
+    // If the pre-warm ping didn't finish in time (e.g. you typed fast),
+    // the server might still be waking up — say so rather than leaving
+    // 'Checking...' looking stuck for 20-30 seconds.
+    const slowNotice = setTimeout(() => {
+      loginBtn.textContent = 'Waking up the server...';
+    }, 4000);
+
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
 
@@ -447,6 +461,7 @@
       errorMsg.textContent = err.message;
       errorMsg.style.display = 'block';
     } finally {
+      clearTimeout(slowNotice);
       loginBtn.disabled = false;
       loginBtn.textContent = 'View my attendance';
     }
