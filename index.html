@@ -39,6 +39,16 @@
   }
   header.masthead h1 { font-size: 1.25rem; font-weight: 600; margin: 0; letter-spacing: 0.2px; }
   header.masthead span.sub { font-size: 0.85rem; color: #C9C2AE; }
+  .logout-btn {
+    all: unset; cursor: pointer;
+    margin-left: auto;
+    font-size: 0.82rem;
+    color: #C9C2AE;
+    padding: 4px 10px;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 3px;
+  }
+  .logout-btn:hover { color: var(--paper); border-color: rgba(255,255,255,0.5); }
 
   main { max-width: 880px; margin: 0 auto; padding: 0 24px 80px; }
 
@@ -312,6 +322,7 @@
 <header class="masthead">
   <h1>UG LMS Report</h1>
   <span class="sub">Bachelor of Management Studies · Attendance &amp; Schedule</span>
+  <button id="logout-btn" class="logout-btn" style="display:none;">Log out</button>
 </header>
 
 <div id="login-view">
@@ -457,6 +468,7 @@
       renderDashboard();
       loginView.style.display = 'none';
       dashboardView.style.display = 'block';
+      document.getElementById('logout-btn').style.display = 'inline-block';
     } catch (err) {
       errorMsg.textContent = err.message;
       errorMsg.style.display = 'block';
@@ -465,6 +477,37 @@
       loginBtn.disabled = false;
       loginBtn.textContent = 'View my attendance';
     }
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    // Nothing was ever stored server-side to begin with, so logging out
+    // just means clearing what's sitting in this tab's memory and
+    // showing the login screen again — no request needed.
+    allCourses = [];
+    latestScheduleData = null;
+    activeSemester = null;
+    activeRiskSemester = null;
+
+    document.getElementById('subject-list').innerHTML = '';
+    document.getElementById('semester-tabs').innerHTML = '';
+    document.getElementById('schedule-content').innerHTML = '';
+    delete document.getElementById('schedule-content').dataset.loaded;
+    document.getElementById('risk-list').innerHTML = '';
+    document.getElementById('risk-semester-tabs').innerHTML = '';
+
+    // Reset the main tabs back to Report for the next login.
+    document.querySelectorAll('#main-tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelector('#main-tabs button[data-panel="register"]').classList.add('active');
+    document.getElementById('register-panel').style.display = 'block';
+    document.getElementById('schedule-panel').style.display = 'none';
+    document.getElementById('risk-panel').style.display = 'none';
+
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+
+    dashboardView.style.display = 'none';
+    loginView.style.display = 'block';
+    document.getElementById('logout-btn').style.display = 'none';
   });
 
   // --- Main tab switching (Report / Schedule / Risk) ---
