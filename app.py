@@ -49,6 +49,30 @@ LANGUAGE_COLUMN = {
     "spanish": "FLC (S)",
 }
 
+# Usernames are like "bms25naitik" — the two digits after "bms" are the
+# admission year, which tells us which semester that whole batch is
+# currently in (every student admitted the same year moves through
+# semesters together). Update this once per term as batches progress —
+# e.g. when Batch 25 moves to Sem 4 and Batch 26 to Sem 2, just update
+# the numbers here; nothing else needs to change.
+BATCH_CURRENT_SEMESTER = {
+    "25": 3,
+    "26": 1,
+}
+
+USERNAME_BATCH_RE = re.compile(r"bms(\d{2})", re.IGNORECASE)
+
+
+def ongoing_semester_for_username(username):
+    """Returns the batch's current semester from their username, or None
+    if the username doesn't match the expected pattern or the batch year
+    isn't in BATCH_CURRENT_SEMESTER yet (a brand new batch not added
+    here yet, for example)."""
+    match = USERNAME_BATCH_RE.search(username or "")
+    if not match:
+        return None
+    return BATCH_CURRENT_SEMESTER.get(match.group(1))
+
 app = Flask(__name__)
 # Only allow requests from the actual frontend's origin — replace this
 # with your real GitHub Pages URL once you know it.
@@ -253,8 +277,12 @@ def get_attendance():
         if not token or not logged_in:
             return jsonify({"error": "Login failed. Check your username and password."}), 401
 
-        # From here on, `username`/`password` are never referenced again —
-        # only `token` and `cookie_http` (already-authenticated) are used.
+        # From here on, `password` is never referenced again — only `token`
+        # and `cookie_http` (already-authenticated) are used. `username`
+        # itself gets read once more below purely to pull the batch year
+        # out of it (e.g. "bms25naitik" -> 25) for the semester lookup —
+        # it's not sensitive like the password and was never meant to be
+        # discarded, just never re-sent anywhere.
 
         course_map = load_course_map()
         site_info = ws_call(token_http, token, "core_webservice_get_site_info")
@@ -305,7 +333,11 @@ def get_attendance():
             result.extend(future.result())
         assignments = assignments_future.result()
 
-    return jsonify({"courses": result, "assignments": assignments})
+    return jsonify({
+        "courses": result,
+        "assignments": assignments,
+        "ongoing_semester": ongoing_semester_for_username(username),
+    })
 
 
 @app.route("/api/health")
