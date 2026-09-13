@@ -176,6 +176,25 @@
   .risk-note.tier-risk { color: var(--absent); font-weight: 500; }
   .risk-note { font-size: 0.78rem; margin-top: 6px; }
 
+  #risk-list { display: flex; flex-direction: column; gap: 14px; }
+  .risk-card {
+    border: 1px solid var(--hairline);
+    border-left: 4px solid var(--muted);
+    background: var(--panel);
+    padding: 18px 22px;
+  }
+  .risk-card h3 { margin: 0 0 8px; font-size: 1.05rem; }
+  .risk-flavor { margin: 0 0 6px; font-size: 1.05rem; font-weight: 600; font-family: 'Source Serif 4', serif; }
+  .risk-stats { margin: 0; font-size: 0.85rem; color: var(--muted); }
+  .risk-card.tier-topper { border-left-color: var(--gold); }
+  .risk-card.tier-topper .risk-flavor { color: var(--gold); }
+  .risk-card.tier-safe { border-left-color: var(--present); }
+  .risk-card.tier-safe .risk-flavor { color: var(--present); }
+  .risk-card.tier-warning { border-left-color: #B5772E; }
+  .risk-card.tier-warning .risk-flavor { color: #B5772E; }
+  .risk-card.tier-risk { border-left-color: var(--absent); }
+  .risk-card.tier-risk .risk-flavor { color: var(--absent); }
+
   .session-list { margin-top: 14px; display: none; }
   .subject-row.expanded .session-list { display: block; }
   .session-row {
@@ -327,6 +346,7 @@
   <nav class="main-tabs" id="main-tabs">
     <button class="active" data-panel="register">Report</button>
     <button data-panel="schedule">Schedule</button>
+    <button data-panel="risk">Attendance Risk</button>
   </nav>
 
   <div id="register-panel">
@@ -364,6 +384,10 @@
       <button id="schedule-refresh" style="width:auto;">Show my schedule</button>
     </div>
     <div id="schedule-content"></div>
+  </div>
+
+  <div id="risk-panel" style="display:none;">
+    <div id="risk-list"></div>
   </div>
 </main>
 
@@ -427,7 +451,7 @@
     }
   });
 
-  // --- Main tab switching (Register / Schedule) ---
+  // --- Main tab switching (Report / Schedule / Risk) ---
   document.getElementById('main-tabs').addEventListener('click', (e) => {
     if (e.target.tagName !== 'BUTTON') return;
     const panel = e.target.dataset.panel;
@@ -435,8 +459,12 @@
     e.target.classList.add('active');
     document.getElementById('register-panel').style.display = panel === 'register' ? 'block' : 'none';
     document.getElementById('schedule-panel').style.display = panel === 'schedule' ? 'block' : 'none';
+    document.getElementById('risk-panel').style.display = panel === 'risk' ? 'block' : 'none';
     if (panel === 'schedule' && !document.getElementById('schedule-content').dataset.loaded) {
       loadSchedule();
+    }
+    if (panel === 'risk') {
+      renderRiskPanel();
     }
   });
 
@@ -553,59 +581,89 @@
    */
   const CUSHION_WARNING_HOURS = 4; // below this many hours of safety margin, show the warning tier
 
+  const FLAVOR_LINES = {
+    topper: [
+      '🏆 100% attendance. Ok topper, we see you.',
+      "Not a single class missed — who hurt you into this discipline?",
+      'This is CV-worthy commitment right here.',
+      'Certified attendance goblin. Never misses. Ever.',
+    ],
+    safe: [
+      "Cruising safely — nothing to see here.",
+      'Comfortable numbers, no drama.',
+      'Living your best low-stress life.',
+      'This is the attendance equivalent of a Sunday nap.',
+    ],
+    warning: [
+      '⚠️ Living dangerously — one more skip and it\'s over.',
+      'This is your villain-origin-story attendance arc.',
+      'Bro is speedrunning a condonation letter.',
+      'The cushion is thinner than your patience for 8am classes.',
+    ],
+    risk: [
+      "💀 It's giving 'see you in the Dean's office' energy.",
+      'Congratulations, you\'ve unlocked Condonation Committee: The Meeting.',
+      'This attendance is beyond saving. RIP.',
+      'Even your percentage is asking for a redo.',
+    ],
+  };
+  function flavorLine(tier) {
+    const lines = FLAVOR_LINES[tier] || [''];
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+
   function attendanceRiskHours(attended, conducted, totalHours) {
     const allowedMisses = totalHours * (1 - REQUIRED_ATTENDANCE);
     const missedSoFar = conducted - attended;
     const remainingAllowed = allowedMisses - missedSoFar;
     const hoursLeft = Math.max(totalHours - conducted, 0);
 
+    let tier, stats;
     if (missedSoFar === 0 && conducted > 0) {
-      return {
-        tier: 'topper', atRisk: false,
-        message: `100% attendance, ${Math.round(conducted)} of ${totalHours} hrs — topper energy 🏆`,
-      };
+      tier = 'topper';
+      stats = `${Math.round(conducted)} of ${totalHours} hrs done`;
+    } else if (remainingAllowed < 0) {
+      tier = 'risk';
+      stats = `${Math.round(conducted)} of ${totalHours} hrs done, ${Math.ceil(-remainingAllowed)} hrs over the limit — 75% isn't reachable even attending every remaining hour`;
+    } else if (remainingAllowed <= CUSHION_WARNING_HOURS) {
+      tier = 'warning';
+      stats = `Only ${Math.floor(remainingAllowed)} hrs of cushion left before dropping below 75%`;
+    } else {
+      tier = 'safe';
+      stats = `${Math.round(conducted)} of ${totalHours} hrs done — can miss ${Math.floor(remainingAllowed)} more hrs (${Math.round(hoursLeft)} hrs left)`;
     }
-    if (remainingAllowed < 0) {
-      return {
-        tier: 'risk', atRisk: true,
-        message: `${Math.round(conducted)} of ${totalHours} hrs done, ${Math.ceil(-remainingAllowed)} hrs over the limit — 75% isn't reachable even attending every remaining hour 💀`,
-      };
-    }
-    if (remainingAllowed <= CUSHION_WARNING_HOURS) {
-      return {
-        tier: 'warning', atRisk: false,
-        message: `Only ${Math.floor(remainingAllowed)} hrs of cushion left before you drop below 75% — cutting it close`,
-      };
-    }
-    return {
-      tier: 'safe', atRisk: false,
-      message: `${Math.round(conducted)} of ${totalHours} hrs done — can miss ${Math.floor(remainingAllowed)} more hrs (${Math.round(hoursLeft)} hrs left in the course)`,
-    };
+    const flavor = flavorLine(tier);
+    return { tier, atRisk: tier === 'risk', flavor, stats, message: `${flavor} ${stats}` };
   }
 
   /**
    * Standard 'attendance calculator' formula — works from present/total
    * alone, no need to know the semester's eventual total session count.
    * Used as a fallback when a subject's total_hours isn't configured yet.
-   * If at or above the requirement: how many more you can miss and stay
-   * at/above it. If below: how many in a row you'd need to attend to
-   * climb back up to it.
    */
   function attendanceRisk(present, total) {
     if (total === 0) return null;
     const pct = present / total;
+    let tier, stats;
     if (present === total) {
-      return { tier: 'topper', atRisk: false, message: `${present}/${total} — perfect record, topper energy 🏆` };
-    }
-    if (pct >= REQUIRED_ATTENDANCE) {
+      tier = 'topper';
+      stats = `${present}/${total} — perfect record`;
+    } else if (pct >= REQUIRED_ATTENDANCE) {
       const canMiss = Math.floor(present / REQUIRED_ATTENDANCE - total);
       if (canMiss <= CUSHION_WARNING_HOURS) {
-        return { tier: 'warning', atRisk: false, message: `Only ${canMiss} more you can miss before dropping below 75% — cutting it close` };
+        tier = 'warning';
+        stats = `Only ${canMiss} more you can miss before dropping below 75%`;
+      } else {
+        tier = 'safe';
+        stats = `Can miss ${canMiss} more`;
       }
-      return { tier: 'safe', atRisk: false, message: `Safe — can miss ${canMiss} more` };
+    } else {
+      const needToAttend = Math.ceil((REQUIRED_ATTENDANCE * total - present) / (1 - REQUIRED_ATTENDANCE));
+      tier = 'risk';
+      stats = `Below 75% — attend the next ${needToAttend} in a row to recover`;
     }
-    const needToAttend = Math.ceil((REQUIRED_ATTENDANCE * total - present) / (1 - REQUIRED_ATTENDANCE));
-    return { tier: 'risk', atRisk: true, message: `Below 75% — attend the next ${needToAttend} in a row to recover 💀` };
+    const flavor = flavorLine(tier);
+    return { tier, atRisk: tier === 'risk', flavor, stats, message: `${flavor} ${stats}` };
   }
 
   function riskTierClass(tier) {
@@ -620,6 +678,32 @@
       return attendanceRiskHours(attended, conducted, course.total_hours);
     }
     return attendanceRisk(presentCount, sessions.length);
+  }
+
+  function renderRiskPanel() {
+    const listEl = document.getElementById('risk-list');
+    const tierOrder = { risk: 0, warning: 1, safe: 2, topper: 3 };
+
+    const items = allCourses.map(course => {
+      const sessions = course.sessions || [];
+      const presentCount = sessions.filter(s => /present/i.test(s.status)).length;
+      const risk = computeRisk(course, sessions, presentCount);
+      return { course, risk };
+    }).filter(item => item.risk && item.risk.stats)
+      .sort((a, b) => tierOrder[a.risk.tier] - tierOrder[b.risk.tier]);
+
+    if (!items.length) {
+      listEl.innerHTML = `<div class="empty-state">No attendance data yet — check the Report tab first.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = items.map(({ course, risk }) => `
+      <div class="risk-card ${riskTierClass(risk.tier)}">
+        <h3>${esc(course.display_name)}</h3>
+        <p class="risk-flavor">${esc(risk.flavor)}</p>
+        <p class="risk-stats">${esc(risk.stats)}</p>
+      </div>
+    `).join('');
   }
 
   function renderSubjectList() {
@@ -648,7 +732,6 @@
         </div>
         <div class="bar-track"><div class="bar-fill ${risk && risk.atRisk ? 'bar-fill-risk' : ''}" style="width:${pct}%"></div></div>
         <div class="session-list">
-          ${risk ? `<div class="risk-note ${riskTierClass(risk.tier)}">${esc(risk.message)}</div>` : ''}
           ${sessions.length === 0
             ? `<div class="empty-state">No sessions recorded yet.</div>`
             : sessions.map(s => `
