@@ -538,6 +538,7 @@
   let allCourses = [];
   let allAssignments = [];
   let serverOngoingSemester = null;
+  let loggedInUsername = '';
   let activeSemester = null;
 
   const loginForm = document.getElementById('login-form');
@@ -577,6 +578,10 @@
       allCourses = data.courses || [];
       allAssignments = data.assignments || [];
       serverOngoingSemester = data.ongoing_semester ?? null;
+      // Kept only in memory, cleared on logout — needed so the Schedule
+      // tab's separate request can tell the backend which batch's
+      // timetable to serve. Never the password, which is wiped below.
+      loggedInUsername = username;
       document.getElementById('password').value = '';
 
       renderDashboard();
@@ -600,6 +605,7 @@
     allCourses = [];
     allAssignments = [];
     serverOngoingSemester = null;
+    loggedInUsername = '';
     latestScheduleData = null;
     activeSemester = null;
     activeRiskSemester = null;
@@ -1106,7 +1112,7 @@
     contentEl.innerHTML = `<div class="empty-state">Loading schedule...</div>`;
 
     try {
-      const resp = await fetch(`${API_BASE}/api/schedule?section=${section}&language=${language}`);
+      const resp = await fetch(`${API_BASE}/api/schedule?section=${section}&language=${language}&username=${encodeURIComponent(loggedInUsername)}`);
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Could not load schedule.');
       contentEl.dataset.loaded = 'true';
