@@ -186,6 +186,22 @@
   /* --- Dashboard --- */
   #dashboard-view { display: none; padding-top: 24px; }
 
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(246,243,236,0.35);
+    border-top-color: var(--text-on-dark);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  #register-panel, #schedule-panel, #risk-panel, #assignments-panel {
+    animation: fadeIn 0.25s ease;
+  }
+
   nav.main-tabs {
     display: flex;
     gap: 26px;
@@ -236,6 +252,7 @@
     border-bottom: 1px solid var(--hairline);
     padding: 16px 4px;
     cursor: pointer;
+    transition: background 0.15s ease;
   }
   .subject-row:hover { background: rgba(169,130,47,0.05); }
   .subject-head { display: flex; justify-content: space-between; align-items: baseline; }
@@ -257,7 +274,9 @@
     border-left: 4px solid var(--muted);
     background: var(--panel);
     padding: 18px 22px;
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
   }
+  .risk-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.08); transform: translateY(-1px); }
   .risk-card h3 { margin: 0 0 8px; font-size: 1.05rem; }
   .risk-flavor { margin: 0 0 6px; font-size: 1.05rem; font-weight: 600; font-family: 'Source Serif 4', serif; }
   .risk-stats { margin: 0; font-size: 0.85rem; color: var(--muted); }
@@ -275,6 +294,7 @@
     border-bottom: 1px solid var(--hairline);
     padding: 16px 4px;
     cursor: pointer;
+    transition: background 0.15s ease;
   }
   .assignment-row:hover { background: rgba(169,130,47,0.05); }
   .assignment-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
@@ -440,7 +460,7 @@
 
 <div id="login-view">
   <div class="hero">
-    <img src="https://commons.wikimedia.org/wiki/Special:FilePath/IIM%20Kozhikode%20Aerial%20View%20s.jpg" alt="IIM Kozhikode campus">
+    <img src="https://commons.wikimedia.org/wiki/Special:FilePath/IIM%20Kozhikode%20Aerial%20View%20s.jpg?width=1200" alt="IIM Kozhikode campus" loading="eager" width="1200" height="500">
     <span class="hero-credit">IIM Kozhikode campus · Wikimedia Commons</span>
   </div>
   <main>
@@ -468,10 +488,10 @@
 
 <main id="dashboard-view">
   <nav class="main-tabs" id="main-tabs">
-    <button class="active" data-panel="register">Report</button>
-    <button data-panel="schedule">Schedule</button>
-    <button data-panel="risk">Attendance Risk</button>
-    <button data-panel="assignments">Assignments</button>
+    <button class="active" data-panel="register">📋 Report</button>
+    <button data-panel="schedule">📅 Schedule</button>
+    <button data-panel="risk">⚠️ Attendance Risk</button>
+    <button data-panel="assignments">📝 Assignments</button>
   </nav>
 
   <div id="register-panel">
@@ -631,13 +651,13 @@
     e.preventDefault();
     errorMsg.style.display = 'none';
     loginBtn.disabled = true;
-    loginBtn.textContent = 'Checking...';
+    loginBtn.innerHTML = '<span class="spinner"></span>Checking...';
 
     // If the pre-warm ping didn't finish in time (e.g. you typed fast),
     // the server might still be waking up — say so rather than leaving
     // 'Checking...' looking stuck for 20-30 seconds.
     const slowNotice = setTimeout(() => {
-      loginBtn.textContent = 'Waking up the server...';
+      loginBtn.innerHTML = '<span class="spinner"></span>Waking up the server...';
     }, 4000);
 
     const username = document.getElementById('username').value;
@@ -996,7 +1016,7 @@
       .sort((a, b) => tierOrder[a.risk.tier] - tierOrder[b.risk.tier]);
 
     if (!items.length) {
-      listEl.innerHTML = `<div class="empty-state">No attendance data yet for this semester.</div>`;
+      listEl.innerHTML = `<div class="empty-state">📭 No attendance data yet for this semester.</div>`;
       return;
     }
 
@@ -1145,7 +1165,7 @@
     const items = [...inScope].sort((a, b) => (a.duedate || Infinity) - (b.duedate || Infinity));
 
     if (!items.length) {
-      listEl.innerHTML = `<div class="empty-state">No assignments found for this filter.</div>`;
+      listEl.innerHTML = `<div class="empty-state">🎉 No assignments found for this filter.</div>`;
       return;
     }
 
@@ -1261,7 +1281,7 @@
     localStorage.setItem('bms_language', language);
 
     const contentEl = document.getElementById('schedule-content');
-    contentEl.innerHTML = `<div class="empty-state">Loading schedule...</div>`;
+    contentEl.innerHTML = `<div class="empty-state"><span class="spinner" style="border-color:rgba(23,35,61,0.2); border-top-color: var(--muted);"></span>Loading schedule...</div>`;
 
     try {
       const resp = await fetch(`${API_BASE}/api/schedule?section=${section}&language=${language}&username=${encodeURIComponent(loggedInUsername)}`);
