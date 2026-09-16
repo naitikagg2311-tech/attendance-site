@@ -293,6 +293,21 @@
   .assignment-detail { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px dotted var(--hairline); }
   .assignment-row.expanded .assignment-detail { display: block; }
   .assignment-intro { font-size: 0.9rem; line-height: 1.6; margin: 0 0 14px; white-space: pre-wrap; }
+  .submission-block {
+    background: var(--paper);
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--present);
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .submission-label {
+    font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--present); font-weight: 600; margin-bottom: 6px;
+  }
+  .submission-text { font-size: 0.88rem; line-height: 1.6; margin: 0; white-space: pre-wrap; }
+  .submission-files { margin: 0; padding: 0; list-style: none; font-size: 0.88rem; }
+  .submission-files li { padding: 3px 0; }
+  .submission-note { font-size: 0.85rem; color: var(--muted); margin: 0; font-style: italic; }
   .personal-check { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted); }
   .personal-check input { width: auto; margin: 0; }
 
@@ -997,6 +1012,39 @@
   // --- Assignments ---
   const STATUS_LABELS = { submitted: 'Submitted', draft: 'Draft saved', new: 'Not submitted', unknown: 'Status unknown' };
 
+  function formatFileSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  /**
+   * Shows what was actually submitted — typed text verbatim, or the
+   * uploaded file's name and size. File content itself isn't downloadable
+   * from here (see note below), only its name/size, which Moodle already
+   * hands us the same way it hands the status.
+   */
+  function renderSubmissionBlock(a) {
+    if (a.submission_status !== 'submitted') return '';
+    const hasText = a.submission_text && a.submission_text.trim();
+    const hasFiles = a.submission_files && a.submission_files.length;
+    if (!hasText && !hasFiles) {
+      return `<div class="submission-block"><div class="submission-label">Your submission</div>
+        <p class="submission-note">Marked submitted on Moodle, but this site couldn't read the actual content (possibly a submission type it doesn't recognize yet).</p></div>`;
+    }
+    let html = `<div class="submission-block"><div class="submission-label">Your submission</div>`;
+    if (hasText) {
+      html += `<p class="submission-text">${esc(a.submission_text)}</p>`;
+    }
+    if (hasFiles) {
+      html += `<ul class="submission-files">` +
+        a.submission_files.map(f => `<li>📎 ${esc(f.filename)}${f.filesize ? ' (' + formatFileSize(f.filesize) + ')' : ''}</li>`).join('') +
+        `</ul>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
   function formatDueDate(unixSeconds, submissionStatus) {
     if (!unixSeconds) return { label: 'No due date', cls: '' };
     const due = new Date(unixSeconds * 1000);
@@ -1117,6 +1165,7 @@
           </div>
           <div class="assignment-detail">
             <p class="assignment-intro">${esc(a.intro) || 'No description provided.'}</p>
+            ${renderSubmissionBlock(a)}
             <label class="personal-check">
               <input type="checkbox" class="personal-check-box" data-id="${a.id}" ${checked ? 'checked' : ''}>
               I've personally checked this off (just a reminder for you — not synced with Moodle)
