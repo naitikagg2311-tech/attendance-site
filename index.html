@@ -44,14 +44,22 @@
   [data-theme="dark"] {
     --ink: #EDE8DD;
     --ink-strong: #FAF7EF;
-    --paper: #1C1A16;
-    --panel: #262319;
-    --hairline: #403C30;
+    --paper: #14120E;
+    --panel: #322C20;
+    --hairline: #4E4736;
     --gold: #D4A83A;
     --present: #6FAF86;
     --absent: #E08868;
     --muted: #A39C8C;
     --warning: #E0A050;
+  }
+  [data-theme="dark"] .login-card,
+  [data-theme="dark"] .risk-card,
+  [data-theme="dark"] .next-class-card,
+  [data-theme="dark"] .schedule-setup,
+  [data-theme="dark"] .submission-block,
+  [data-theme="dark"] .remaining-item {
+    box-shadow: 0 3px 14px rgba(0,0,0,0.35);
   }
   * { box-sizing: border-box; }
   body {
@@ -106,6 +114,15 @@
 
   /* --- Login / hero --- */
   #login-view { display: block; }
+  #login-view main {
+    background-image: repeating-linear-gradient(
+      to bottom, transparent, transparent 27px, rgba(23,35,61,0.05) 27px, rgba(23,35,61,0.05) 28px
+    );
+    background-position: 0 -70px;
+  }
+  [data-theme="dark"] #login-view main { background-image: repeating-linear-gradient(
+      to bottom, transparent, transparent 27px, rgba(255,255,255,0.045) 27px, rgba(255,255,255,0.045) 28px
+    ); }
   .hero {
     position: relative;
     height: 34vh;
@@ -157,6 +174,19 @@
     .login-wrap { flex-direction: row-reverse; align-items: flex-start; justify-content: center; gap: 64px; }
   }
   .login-features { max-width: 380px; padding-top: 10px; }
+  .feature-photo {
+    width: 180px; height: 130px;
+    border: 4px solid var(--panel);
+    outline: 1px solid var(--hairline);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    margin-bottom: 20px;
+    transform: rotate(-1.5deg);
+    overflow: hidden;
+  }
+  .feature-photo img {
+    width: 100%; height: 100%; object-fit: cover; object-position: 30% 70%;
+    display: block;
+  }
   .login-features h3 { font-size: 1.35rem; margin: 0 0 6px; }
   .login-features p.features-sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 24px; line-height: 1.5; }
   .feature-item { display: flex; gap: 14px; margin-bottom: 20px; }
@@ -526,6 +556,9 @@
         </div>
       </div>
       <div class="login-features">
+        <div class="feature-photo">
+          <img src="https://commons.wikimedia.org/wiki/Special:FilePath/IIM%20Kozhikode%20Aerial%20View%20s.jpg?width=500" alt="IIM Kozhikode campus grounds" loading="lazy" width="500" height="280">
+        </div>
         <h3 class="serif">Everything in one place</h3>
         <p class="features-sub">One login pulls straight from your LMS — no more checking three different places.</p>
         <div class="feature-item">
