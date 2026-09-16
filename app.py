@@ -277,26 +277,44 @@ def fetch_assignments(token_http, token, courses, course_map, userid):
         # the real Moodle UI relies on — so it correctly handles team
         # submissions, extensions, and other edge cases the bulk check
         # doesn't. Costs one call per assignment instead of one total, so
-        # they're run in parallel.
+        # they're run in parallel. Its response also already contains
+        # what was actually submitted (typed text, or uploaded file
+        # names/sizes) — extracted below rather than making yet another
+        # call for it.
         def get_status(assignment_id):
             try:
                 resp = ws_call(token_http, token, "mod_assign_get_submission_status", assignid=assignment_id)
                 last = resp.get("lastattempt", {}) or {}
                 # Individual submission first; team submission as fallback
                 # for group assignments where the individual one is empty.
-                status = (last.get("submission") or {}).get("status")
-                if not status:
-                    status = (last.get("teamsubmission") or {}).get("status")
-                return assignment_id, status or "new"
+                submission = last.get("submission") or last.get("teamsubmission") or {}
+                status = submission.get("status") or "new"
+
+                text, files = None, []
+                for plugin in submission.get("plugins", []) or []:
+                    if plugin.get("type") == "onlinetext":
+                        for field in plugin.get("editorfields", []) or []:
+                            if field.get("text"):
+                                text = strip_html(field["text"])
+                    elif plugin.get("type") == "file":
+                        for area in plugin.get("fileareas", []) or []:
+                            for f in area.get("files", []) or []:
+                                if f.get("filename"):
+                                    files.append({"filename": f["filename"], "filesize": f.get("filesize")})
+
+                return assignment_id, status, text, files
             except (requests.exceptions.RequestException, KeyError, ValueError, TypeError):
-                return assignment_id, "unknown"
+                return assignment_id, "unknown", None, []
 
         with ThreadPoolExecutor(max_workers=8) as pool:
-            results = pool.map(get_status, [a["id"] for a in assignments])
-        status_by_assignment = dict(results)
+            results = list(pool.map(get_status, [a["id"] for a in assignments]))
+        by_id = {r[0]: r for r in results}
 
         for a in assignments:
-            a["submission_status"] = status_by_assignment.get(a["id"], "unknown")
+            _, status, text, files = by_id.get(a["id"], (a["id"], "unknown", None, []))
+            a["submission_status"] = status
+            a["submission_text"] = text
+            a["submission_files"] = files
 
         return assignments
     except (requests.exceptions.RequestException, KeyError, ValueError, TypeError):
