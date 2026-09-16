@@ -438,31 +438,37 @@ def format_date_nice(date_str):
         return date_str
 
 
+def disambiguate_hour_minute(t):
+    """
+    '01:30' -> (13, 30). The sheet writes hours ambiguously below 10
+    (e.g. '01:30' really means 1:30 PM) rather than using 24-hour
+    notation consistently. Hours 1-8 are the ambiguous ones — 9, 10, 11
+    are always genuine morning classes across every batch's schedule
+    seen so far (the junior Sem-I day starts at 9 AM), so those are left
+    alone; only 1-8 get bumped by 12. This is the SAME correction used
+    for both the human-readable time label and the actual sortable
+    datetime below — they must never disagree, or a class ends up
+    sorted/filtered as if it happened at a completely different hour
+    than the one actually displayed.
+    """
+    h, m = map(int, t.strip().split(":"))
+    if 1 <= h <= 8:
+        h += 12
+    return h, m
+
+
 def format_time_range(raw_time):
-    """
-    '14:30-15:30' -> '2:30-3:30 pm'. Some batches' sheets write hours
-    ambiguously below 10 (e.g. '01:30' really means 1:30 PM) rather than
-    using 24-hour notation consistently. Specifically hours 1-8 are the
-    ambiguous ones — 9, 10, 11 are always genuine morning classes across
-    every batch's schedule seen so far (the junior Sem-I day starts at
-    9 AM), so those are left alone; only 1-8 get bumped by 12.
-    """
+    """'14:30-15:30' -> '2:30-3:30 pm'"""
     try:
         start_raw, end_raw = raw_time.split("-")
-
-        def norm(t):
-            h, m = map(int, t.strip().split(":"))
-            if 1 <= h <= 8:
-                h += 12
-            return h, m
 
         def to12(h):
             period = "am" if h < 12 else "pm"
             h12 = h % 12 or 12
             return h12, period
 
-        sh, sm = norm(start_raw)
-        eh, em = norm(end_raw)
+        sh, sm = disambiguate_hour_minute(start_raw)
+        eh, em = disambiguate_hour_minute(end_raw)
         sh12, speriod = to12(sh)
         eh12, eperiod = to12(eh)
         if speriod == eperiod:
@@ -559,9 +565,11 @@ def build_personal_schedule(section, language, schedule_config):
             else:
                 prefix, name, session_no, is_subject = parse_code(raw, subject_codes)
             try:
-                start_time = time_str.split("-")[0].strip()
-                dt = datetime.strptime(f"{date_str} {start_time}", "%A, %d %B, %Y %H:%M")
-            except ValueError:
+                date_only = datetime.strptime(date_str, "%A, %d %B, %Y")
+                start_raw = time_str.split("-")[0].strip()
+                start_h, start_m = disambiguate_hour_minute(start_raw)
+                dt = date_only.replace(hour=start_h, minute=start_m)
+            except (ValueError, IndexError):
                 dt = None
             sessions.append({
                 "date": date_str,
