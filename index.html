@@ -404,7 +404,7 @@
   .subject-row.expanded .session-list { display: block; }
   .session-row {
     display: grid;
-    grid-template-columns: 120px 90px 1fr 90px 70px;
+    grid-template-columns: 120px 120px 1fr 80px 96px;
     gap: 10px;
     padding: 6px 0;
     font-size: 0.85rem;
@@ -412,6 +412,20 @@
     align-items: baseline;
   }
   .session-row .time { color: var(--muted); font-size: 0.8rem; }
+  .session-row .hrs { text-align: right; white-space: nowrap; color: var(--muted); }
+  .hrs-note { display: block; font-size: 0.66rem; color: var(--warning); cursor: help; }
+  /* On a phone five columns can't fit — stack each row instead:
+       date ............ status
+       time ............ hours
+       description (full width)                                        */
+  @media (max-width: 640px) {
+    .session-row { grid-template-columns: 1fr auto; column-gap: 12px; row-gap: 3px; padding: 9px 0; }
+    .session-row > :nth-child(1) { grid-area: 1 / 1; font-weight: 500; }
+    .session-row > :nth-child(4) { grid-area: 1 / 2; text-align: right; }
+    .session-row > :nth-child(2) { grid-area: 2 / 1; }
+    .session-row > :nth-child(5) { grid-area: 2 / 2; }
+    .session-row > :nth-child(3) { grid-area: 3 / 1 / 4 / 3; color: var(--muted); font-size: 0.8rem; }
+  }
   .session-row:first-child { border-top: none; }
   .status-present { color: var(--present); }
   .status-absent { color: var(--absent); }
@@ -889,13 +903,14 @@
 
   document.getElementById('export-btn').addEventListener('click', () => {
     const courses = allCourses.filter(c => (c.semester ?? 'Unclassified') === activeSemester);
-    const rows = [['Subject', 'Present', 'Total', 'Percentage', 'Status']];
+    const rows = [['Subject', 'Hours present', 'Hours held', 'Percentage', 'Status']];
     courses.forEach(course => {
       const sessions = course.sessions || [];
+      const { conducted, attended } = hoursSummary(sessions);
       const presentCount = sessions.filter(s => /present/i.test(s.status)).length;
-      const pct = sessions.length ? Math.round((presentCount / sessions.length) * 100) : 0;
+      const pct = conducted ? Math.round((attended / conducted) * 100) : 0;
       const risk = computeRisk(course, sessions, presentCount);
-      rows.push([course.display_name, presentCount, sessions.length, `${pct}%`, risk ? risk.message : '']);
+      rows.push([course.display_name, formatHrs(attended), formatHrs(conducted), `${pct}%`, risk ? risk.message : '']);
     });
 
     const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
@@ -998,11 +1013,68 @@
   function hoursSummary(sessions) {
     let conducted = 0, attended = 0;
     sessions.forEach(s => {
-      const dur = sessionDurationHours(s.time) ?? 1;
+      const dur = sessionHours(s);
       conducted += dur;
       if (/present/i.test(s.status)) attended += dur;
     });
     return { conducted, attended };
+  }
+
+  /**
+   * LAST-RESORT hour count from the teacher's own labelling — "Hour 1 & 2",
+   * "Hour 3, 4 & 5", "Hour 8-10", "15 and 16". Only used when a row has no
+   * readable time range (see sessionHoursInfo); the clock always wins when
+   * there is one. Moodle itself gives every row "1 / 1" regardless of
+   * length, so its own score can't be used for hours either.
+   */
+  function hoursFromDescription(text) {
+    if (!text) return null;
+    const m = text.match(/(?:hours?|session|class(?:es)?)\s*(\d+(?:\s*(?:,|&|and|-|–|to)\s*\d+)*)/i);
+    if (!m) return null;
+    const list = m[1];
+    const range = list.match(/^(\d+)\s*(?:-|–|to)\s*(\d+)$/i);
+    let count;
+    if (range) {
+      count = parseInt(range[2], 10) - parseInt(range[1], 10) + 1;
+    } else {
+      count = (list.match(/\d+/g) || []).length;
+    }
+    // Only a list of 2+ hours says anything about duration — a lone number
+    // ("Regular class session 7") is just a label, so let the clock decide
+    // that one. And a sane class is at most 6 hours; anything beyond that
+    // means the numbers weren't hour labels at all.
+    return count >= 2 && count <= 6 ? count : null;
+  }
+
+  /**
+   * The clock decides. A row's hours come from its start and end time
+   * (2:30PM - 4:45PM = 2 classes: 2:30-3:30 and 3:45-4:45), regardless of
+   * how the teacher happened to label it ("Hour 1 & 2", "Hour 6-7",
+   * "Regular class session 15 and 16"). Labels are inconsistent, so they're
+   * only a last resort for a row with NO readable time range at all (e.g. one
+   * that just says "12AM"), and the row is marked so it's never silent.
+   * With neither, it's assumed to be 1 hour — also marked.
+   */
+  function sessionHoursInfo(s) {
+    const fromTime = sessionDurationHours(s.time);
+    if (fromTime != null) return { hours: fromTime, source: 'time' };
+    const fromLabel = hoursFromDescription(s.session);
+    if (fromLabel != null) return { hours: fromLabel, source: 'label' };
+    return { hours: 1, source: 'assumed' };
+  }
+
+  function sessionHours(s) {
+    return sessionHoursInfo(s).hours;
+  }
+
+  // Moodle shows a session with no real time as "Mon 7 Sept 2026 12AM" —
+  // that trailing "12AM" is a placeholder, not a time, so don't display it.
+  function cleanSessionDate(d) {
+    return (d || '').replace(/\s+\d{1,2}(?::\d{2})?\s*[AP]M\s*$/i, '');
+  }
+
+  function formatHrs(n) {
+    return Number.isInteger(n) ? String(n) : n.toFixed(1);
   }
 
   /**
@@ -1084,15 +1156,15 @@
     let tier, stats;
     if (present === total) {
       tier = 'topper';
-      stats = `Missed 0, out of ${total} sessions so far`;
+      stats = `Missed 0 hrs, out of ${formatHrs(total)} hrs held so far`;
     } else if (pct >= REQUIRED_ATTENDANCE) {
       const canMiss = Math.floor(present / REQUIRED_ATTENDANCE - total);
       tier = canMiss <= CUSHION_WARNING_HOURS ? 'warning' : 'safe';
-      stats = `Already missed ${missedSoFar} — you can miss ${canMiss} more and stay at or above 75%`;
+      stats = `Already missed ${formatHrs(missedSoFar)} hrs — you can miss ${canMiss} more and stay at or above 75%`;
     } else {
       const needToAttend = Math.ceil((REQUIRED_ATTENDANCE * total - present) / (1 - REQUIRED_ATTENDANCE));
       tier = 'risk';
-      stats = `Already missed ${missedSoFar} — attend the next ${needToAttend} in a row to climb back to 75%`;
+      stats = `Already missed ${formatHrs(missedSoFar)} hrs — attend the next ${needToAttend} hrs in a row to climb back to 75%`;
     }
     const flavor = flavorLine(tier);
     return { tier, atRisk: tier === 'risk', flavor, stats, message: `${flavor} ${stats}` };
@@ -1102,14 +1174,16 @@
     return { topper: 'tier-topper', safe: 'tier-safe', warning: 'tier-warning', risk: 'tier-risk' }[tier] || '';
   }
 
-  /** Picks the hours-based calculation when total_hours is configured for
-   * this subject, otherwise falls back to the session-count version. */
+  /** Both paths work in real class hours. With a known course total, it can
+   * say whether 75% is still reachable at all; without one, it uses the
+   * simpler rolling calculation. (The third argument is unused now but kept
+   * so existing callers don't need to change.) */
   function computeRisk(course, sessions, presentCount) {
+    const { conducted, attended } = hoursSummary(sessions);
     if (course.total_hours) {
-      const { conducted, attended } = hoursSummary(sessions);
       return attendanceRiskHours(attended, conducted, course.total_hours);
     }
-    return attendanceRisk(presentCount, sessions.length);
+    return attendanceRisk(attended, conducted);
   }
 
   let activeRiskSemester = null;
@@ -1360,8 +1434,11 @@
     listEl.innerHTML = '';
     courses.forEach(course => {
       const sessions = course.sessions || [];
+      // Counted in real class HOURS, not rows: a row covering "Hour 3, 4 & 5"
+      // is 3 hours, not 1. (Moodle itself scores every row "1 / 1".)
+      const { conducted, attended } = hoursSummary(sessions);
       const presentCount = sessions.filter(s => /present/i.test(s.status)).length;
-      const pct = sessions.length ? Math.round((presentCount / sessions.length) * 100) : 0;
+      const pct = conducted ? Math.round((attended / conducted) * 100) : 0;
       const risk = computeRisk(course, sessions, presentCount);
 
       const row = document.createElement('div');
@@ -1369,21 +1446,32 @@
       row.innerHTML = `
         <div class="subject-head">
           <h3>${esc(course.display_name)}</h3>
-          <span class="subject-tally ${risk && risk.atRisk ? 'at-risk' : ''}">${presentCount} / ${sessions.length} present · ${pct}%</span>
+          <span class="subject-tally ${risk && risk.atRisk ? 'at-risk' : ''}">${formatHrs(attended)} / ${formatHrs(conducted)} hrs present · ${pct}%</span>
         </div>
         <div class="bar-track"><div class="bar-fill ${risk && risk.atRisk ? 'bar-fill-risk' : ''}" style="width:${pct}%"></div></div>
         <div class="session-list">
           ${sessions.length === 0
             ? `<div class="empty-state">No sessions recorded yet.</div>`
-            : sessions.map(s => `
+            : sessions.map(s => {
+                const info = sessionHoursInfo(s);
+                const hrs = info.hours;
+                const got = /present/i.test(s.status) ? hrs : 0;
+                // Rows whose hours came from the clock need no comment. Any
+                // other row says plainly that it did not.
+                const note = info.source === 'label'
+                  ? `<span class="hrs-note" title="No readable time range in Moodle, so the hours come from the teacher's hour numbers">from label</span>`
+                  : info.source === 'assumed'
+                  ? `<span class="hrs-note" title="No readable time range or hour numbers in Moodle, so this is counted as 1 hour">assumed</span>`
+                  : '';
+                return `
               <div class="session-row">
-                <span>${esc(s.date)}</span>
+                <span>${esc(cleanSessionDate(s.date))}</span>
                 <span class="time">${esc(s.time || '')}</span>
                 <span>${esc(s.session)}</span>
                 <span class="${statusClass(s.status)}">${esc(s.status)}</span>
-                <span>${esc(s.points)}</span>
-              </div>
-            `).join('')}
+                <span class="hrs">${formatHrs(got)} / ${formatHrs(hrs)} hrs${note}</span>
+              </div>`;
+              }).join('')}
         </div>
       `;
       row.addEventListener('click', () => row.classList.toggle('expanded'));
