@@ -17,7 +17,15 @@ import io
 import time
 import threading
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+# Every class time in the schedule sheets is India Standard Time, but the
+# server (Render) runs on UTC. Comparing "now" from the server's own clock
+# against IST class times is a 5.5 hour error — at 4 PM in India the
+# server thought it was 10:30 AM, so classes from that morning still
+# looked "upcoming". Everything time-related below is therefore pinned to
+# IST explicitly. India has no daylight saving, so a fixed offset is exact.
+IST = timezone(timedelta(hours=5, minutes=30))
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -155,7 +163,15 @@ def ws_call(http, token, function, **params):
     return resp.json()
 
 
-TIME_RANGE_RE = re.compile(r"(\d{1,2}(:\d{2})?\s*[AP]M\s*-\s*\d{1,2}(:\d{2})?\s*[AP]M)", re.IGNORECASE)
+# Moodle's time range isn't always '5PM - 6PM' — it can use an en-dash or
+# 'to', and the start sometimes omits AM/PM ('10:00 - 12:15 PM'). Anything
+# that fails to match here ends up with no time at all, and the frontend's
+# hours calculation then falls back to assuming a 1-hour session — which is
+# how a 2-hour class could silently get counted as 1 hour.
+TIME_RANGE_RE = re.compile(
+    r"(\d{1,2}(?::\d{2})?\s*(?:[AP]M)?\s*(?:-|–|—|to|»)\s*\d{1,2}(?::\d{2})?\s*[AP]M)",
+    re.IGNORECASE,
+)
 
 
 def parse_attendance_table(html):
@@ -306,7 +322,10 @@ def fetch_assignments(token_http, token, courses, course_map, userid):
             except (requests.exceptions.RequestException, KeyError, ValueError, TypeError):
                 return assignment_id, "unknown", None, []
 
-        with ThreadPoolExecutor(max_workers=8) as pool:
+        # One call per assignment, and a student has assignments from every
+        # semester they've taken — so more of them run at once to cut the
+        # number of sequential rounds a login spends waiting on Moodle.
+        with ThreadPoolExecutor(max_workers=16) as pool:
             results = list(pool.map(get_status, [a["id"] for a in assignments]))
         by_id = {r[0]: r for r in results}
 
@@ -412,8 +431,34 @@ def get_attendance():
     })
 
 
+_warming_lock = threading.Lock()
+
+
+def _warm_schedule_cache():
+    """Pre-fetch every batch's schedule sheet into the cache. Runs in a
+    background thread so the health ping returns instantly. If the cache
+    is already fresh this does nothing (fetch_schedule_sheet returns the
+    cached copy), and the lock stops pings from piling up duplicate
+    downloads at the same time."""
+    if not _warming_lock.acquire(blocking=False):
+        return
+    try:
+        for config in SCHEDULES.values():
+            if config.get("sheet_id"):
+                try:
+                    fetch_schedule_sheet(config["sheet_id"], config["gid"])
+                except Exception:
+                    pass  # warming is best-effort; real requests handle errors properly
+    finally:
+        _warming_lock.release()
+
+
 @app.route("/api/health")
 def health():
+    # The frontend pings this the instant the page loads (to wake the free-tier
+    # server). Piggybacking the schedule download on that same moment means it's
+    # usually already cached by the time anyone clicks the Schedule tab.
+    threading.Thread(target=_warm_schedule_cache, daemon=True).start()
     return jsonify({"status": "ok"})
 
 
@@ -475,10 +520,38 @@ def disambiguate_hour_minute(t):
     return h, m
 
 
+def clean_time_str(raw_time):
+    """Sheets sometimes use an en/em dash instead of a hyphen between the
+    start and end time — treat them all the same instead of silently
+    failing to parse (which would drop the session from 'upcoming')."""
+    return (raw_time or "").replace("–", "-").replace("—", "-").strip()
+
+
+def session_duration_hours(raw_time):
+    """
+    How many real class hours a schedule slot is worth. A plain 1-hour
+    slot is 1. A slot like '1:00-3:00' is 2 — it used to be counted as a
+    single session, which is how 2-hour classes ended up classified as 1.
+    A span that includes the 15-minute break between back-to-back class
+    hours (e.g. 10:00-12:15) is still 2 real hours, not 2.25 — the same
+    rule the Attendance Risk tab uses.
+    """
+    try:
+        start_raw, end_raw = clean_time_str(raw_time).split("-")
+        sh, sm = disambiguate_hour_minute(start_raw)
+        eh, em = disambiguate_hour_minute(end_raw)
+        raw_minutes = (eh * 60 + em) - (sh * 60 + sm)
+        if raw_minutes <= 75:
+            return 1.0
+        return float(max(1, round((raw_minutes + 15) / 75)))
+    except Exception:
+        return 1.0
+
+
 def format_time_range(raw_time):
     """'14:30-15:30' -> '2:30-3:30 pm'"""
     try:
-        start_raw, end_raw = raw_time.split("-")
+        start_raw, end_raw = clean_time_str(raw_time).split("-")
 
         def to12(h):
             period = "am" if h < 12 else "pm"
@@ -584,9 +657,12 @@ def build_personal_schedule(section, language, schedule_config):
                 prefix, name, session_no, is_subject = parse_code(raw, subject_codes)
             try:
                 date_only = datetime.strptime(date_str, "%A, %d %B, %Y")
-                start_raw = time_str.split("-")[0].strip()
+                start_raw = clean_time_str(time_str).split("-")[0].strip()
                 start_h, start_m = disambiguate_hour_minute(start_raw)
-                dt = date_only.replace(hour=start_h, minute=start_m)
+                # tzinfo=IST means the ISO string below ends in "+05:30", so
+                # the browser parses it as the exact right moment no matter
+                # what timezone the device or server happens to be in.
+                dt = date_only.replace(hour=start_h, minute=start_m, tzinfo=IST)
             except (ValueError, IndexError):
                 dt = None
             sessions.append({
@@ -595,6 +671,7 @@ def build_personal_schedule(section, language, schedule_config):
                 "day": day_str,
                 "time": time_str,
                 "time_nice": format_time_range(time_str),
+                "duration_hours": session_duration_hours(time_str),
                 "code": raw,
                 "subject": name,
                 "session_no": session_no,
@@ -625,20 +702,25 @@ def get_schedule():
     except requests.exceptions.RequestException:
         return jsonify({"error": "Couldn't reach the schedule sheet right now. Try again shortly."}), 502
 
-    now = datetime.now().isoformat()
+    # "Now" in India, compared as real timezone-aware datetimes — never as
+    # strings, and never against the server's own (UTC) clock.
+    now = datetime.now(IST)
 
-    upcoming = [s for s in sessions if s["datetime"] and s["datetime"] >= now]
+    upcoming = [s for s in sessions if s["datetime"] and datetime.fromisoformat(s["datetime"]) >= now]
     next_class = next((s for s in upcoming if s["is_subject"]), None)
 
-    remaining_by_subject = {}
+    remaining_by_subject = {}       # number of class slots left
+    remaining_hours_by_subject = {}  # real class hours left (a 2-hour slot = 2)
     for s in upcoming:
         if not s["is_subject"]:
             continue
         remaining_by_subject[s["subject"]] = remaining_by_subject.get(s["subject"], 0) + 1
+        remaining_hours_by_subject[s["subject"]] = remaining_hours_by_subject.get(s["subject"], 0) + s["duration_hours"]
 
     return jsonify({
         "next_class": next_class,
         "remaining_by_subject": remaining_by_subject,
+        "remaining_hours_by_subject": remaining_hours_by_subject,
         "all_sessions": sessions,
     })
 
