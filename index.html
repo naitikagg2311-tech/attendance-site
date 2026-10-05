@@ -508,6 +508,11 @@
     border: 2px solid var(--paper);
   }
   .day-row .time-label { color: var(--muted); font-size: 0.85rem; }
+  .dur-chip {
+    display: inline-block; margin-left: 6px; padding: 1px 7px;
+    font-size: 0.68rem; font-weight: 600; border-radius: 9px;
+    background: rgba(169,130,47,0.16); color: var(--gold);
+  }
   .day-row .subject-label { display: flex; align-items: center; gap: 8px; font-weight: 500; }
   .day-row .event-label { color: var(--muted); font-style: italic; font-weight: 400; }
 </style>
@@ -797,6 +802,10 @@
       loginView.style.display = 'none';
       dashboardView.style.display = 'block';
       document.getElementById('logout-btn').style.display = 'inline-block';
+      // Don't wait for a click on the Schedule tab to start fetching it —
+      // begin now, in the background, so it's usually ready by the time
+      // anyone opens it.
+      loadSchedule();
     } catch (err) {
       errorMsg.textContent = err.message;
       errorMsg.style.display = 'block';
@@ -825,6 +834,8 @@
     document.getElementById('semester-tabs').innerHTML = '';
     document.getElementById('schedule-content').innerHTML = '';
     delete document.getElementById('schedule-content').dataset.loaded;
+    delete document.getElementById('schedule-content').dataset.loading;
+    scheduleRequestId++; // anything still in flight is now stale and will be discarded
     document.getElementById('risk-list').innerHTML = '';
     document.getElementById('risk-semester-tabs').innerHTML = '';
     document.getElementById('assignments-list').innerHTML = '';
@@ -857,7 +868,8 @@
     document.getElementById('assignments-panel').style.display = panel === 'assignments' ? 'block' : 'none';
     if (panel === 'schedule') {
       document.getElementById('language-field').style.display = hasLanguageTrack ? 'block' : 'none';
-      if (!document.getElementById('schedule-content').dataset.loaded) {
+      const scheduleEl = document.getElementById('schedule-content');
+      if (!scheduleEl.dataset.loaded && !scheduleEl.dataset.loading) {
         loadSchedule();
       }
     }
@@ -927,24 +939,43 @@
    * '5PM - 6PM' -> 1, '10:00 AM - 12:15 PM' -> 2.25, etc. Returns null if
    * the string can't be parsed, so callers can fall back gracefully.
    */
-  function parseTimeToDecimalHours(t) {
-    const m = t.match(/(\d{1,2})(?::(\d{2}))?\s*([AP]M)/i);
+  function parseTimeToken(t) {
+    const m = t.match(/(\d{1,2})(?::(\d{2}))?\s*([AP]M)?/i);
     if (!m) return null;
-    let h = parseInt(m[1], 10);
-    const min = m[2] ? parseInt(m[2], 10) : 0;
-    const period = m[3].toUpperCase();
-    if (period === 'PM' && h !== 12) h += 12;
-    if (period === 'AM' && h === 12) h = 0;
-    return h + min / 60;
+    return { h: parseInt(m[1], 10), min: m[2] ? parseInt(m[2], 10) : 0, period: m[3] ? m[3].toUpperCase() : null };
   }
 
+  function tokenToDecimal(tok, period) {
+    let h = tok.h;
+    if (period === 'PM' && h !== 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return h + tok.min / 60;
+  }
+
+  /**
+   * Accepts '5PM - 6PM', '10:00 AM – 12:15 PM' (en-dash), '10:00 to 12:15 PM',
+   * '10:00 - 12:15 PM' (start has no AM/PM — borrows the end's), and plain
+   * 24-hour '14:00 - 16:15'. Anything unreadable returns null; callers then
+   * assume a 1-hour session, which is why being tolerant here matters: every
+   * format missed here shrinks a longer class down to 1 hour.
+   */
   function sessionDurationHours(timeStr) {
     if (!timeStr) return null;
-    const parts = timeStr.split('-');
+    const parts = timeStr.split(/\s*(?:-|–|—|to|»)\s*/i);
     if (parts.length !== 2) return null;
-    const start = parseTimeToDecimalHours(parts[0].trim());
-    const end = parseTimeToDecimalHours(parts[1].trim());
-    if (start == null || end == null) return null;
+    const a = parseTimeToken(parts[0]);
+    const b = parseTimeToken(parts[1]);
+    if (!a || !b) return null;
+
+    const endPeriod = b.period || a.period;
+    const startPeriod = a.period || endPeriod;
+    const end = tokenToDecimal(b, endPeriod);
+    let start = tokenToDecimal(a, startPeriod);
+    // '11:30 - 1:30 PM': borrowing PM for the start would put it AFTER the
+    // end, so the start must actually be AM.
+    if (!a.period && endPeriod && start > end) {
+      start = tokenToDecimal(a, startPeriod === 'PM' ? 'AM' : 'PM');
+    }
     let diff = end - start;
     if (diff <= 0) diff += 12; // guards against an unexpected AM/PM edge case
 
@@ -1381,6 +1412,12 @@
   });
 
   let latestScheduleData = null;
+  // Every call gets a number; only the newest call is allowed to draw its
+  // result. This is what makes it safe to start loading the schedule in
+  // the background right after login AND still let you press "Show my
+  // schedule" with different settings — an older, slower response can
+  // never overwrite a newer one (or arrive after logout and repopulate it).
+  let scheduleRequestId = 0;
 
   async function loadSchedule() {
     const section = sectionSelect.value;
@@ -1389,18 +1426,24 @@
     localStorage.setItem('bms_language', language);
 
     const contentEl = document.getElementById('schedule-content');
+    const requestId = ++scheduleRequestId;
+    contentEl.dataset.loading = 'true';
     contentEl.innerHTML = `<div class="empty-state"><span class="spinner" style="border-color:rgba(23,35,61,0.2); border-top-color: var(--muted);"></span>Loading schedule...</div>`;
 
     try {
       const resp = await fetch(`${API_BASE}/api/schedule?section=${section}&language=${language}&username=${encodeURIComponent(loggedInUsername)}`);
       const data = await resp.json();
+      if (requestId !== scheduleRequestId) return; // superseded by a newer request or by logout
       if (!resp.ok) throw new Error(data.error || 'Could not load schedule.');
       contentEl.dataset.loaded = 'true';
       latestScheduleData = data;
       populateSubjectFilter(data);
       renderSchedule(data);
     } catch (err) {
+      if (requestId !== scheduleRequestId) return;
       contentEl.innerHTML = `<div class="empty-state"><h3 class="serif">Couldn't load the schedule</h3>${esc(err.message)}</div>`;
+    } finally {
+      if (requestId === scheduleRequestId) delete contentEl.dataset.loading;
     }
   }
 
@@ -1440,16 +1483,28 @@
 
   function renderSchedule(data) {
     const contentEl = document.getElementById('schedule-content');
-    const { remaining_by_subject, all_sessions } = data;
+    const { all_sessions } = data;
     const filterSubject = document.getElementById('subject-filter').value;
 
     let html = '';
 
-    const nowIso = new Date().toISOString();
-    let upcoming = (all_sessions || []).filter(s => s.datetime && s.datetime >= nowIso);
-    if (filterSubject) {
-      upcoming = upcoming.filter(s => s.subject === filterSubject);
-    }
+    // Real Date objects, never string comparison. Every session's datetime
+    // carries its own "+05:30", so this is correct on any device in any
+    // timezone. The old version compared against new Date().toISOString(),
+    // which is UTC — a 5.5 hour error that made that morning's classes look
+    // "upcoming" at 4 PM.
+    const now = new Date();
+    const allUpcoming = (all_sessions || []).filter(s => s.datetime && new Date(s.datetime) >= now);
+    const upcoming = filterSubject ? allUpcoming.filter(s => s.subject === filterSubject) : allUpcoming;
+
+    // Remaining is counted in real class HOURS (a 2-hour slot counts as 2),
+    // recomputed here against the current time so it can't go stale while
+    // the tab sits open.
+    const remainingHours = {};
+    allUpcoming.forEach(s => {
+      if (!s.is_subject) return;
+      remainingHours[s.subject] = (remainingHours[s.subject] || 0) + (s.duration_hours || 1);
+    });
 
     // 'upcoming' above is already filtered to the chosen subject (if any),
     // so this naturally becomes "that subject's next class" when filtered,
@@ -1473,14 +1528,15 @@
     }
 
     if (!filterSubject) {
-      const subjects = Object.entries(remaining_by_subject || {});
+      const subjects = Object.entries(remainingHours);
       if (subjects.length) {
-        html += `<div class="schedule-section-title">Sessions remaining</div><div class="remaining-grid">`;
-        subjects.forEach(([name, count]) => {
+        html += `<div class="schedule-section-title">Class hours remaining</div><div class="remaining-grid">`;
+        subjects.forEach(([name, hours]) => {
+          const shown = Number.isInteger(hours) ? hours : hours.toFixed(1);
           html += `<div class="remaining-item">
             <span class="dot" style="background:${subjectColor(name)}"></span>
             <span>${esc(name)}</span>
-            <span class="count"><b>${count}</b> left</span>
+            <span class="count"><b>${shown}</b> hrs left</span>
           </div>`;
         });
         html += `</div>`;
@@ -1505,8 +1561,10 @@
       sessions.forEach(s => {
         const dotColor = s.is_subject ? subjectColor(s.subject) : 'var(--hairline)';
         const labelClass = s.is_subject ? 'subject-label' : 'subject-label event-label';
+        const durChip = s.is_subject && s.duration_hours > 1
+          ? `<span class="dur-chip">${s.duration_hours} hrs</span>` : '';
         html += `<div class="day-row" style="--dot-color:${dotColor}">
-          <span class="time-label">${esc(s.time_nice)}</span>
+          <span class="time-label">${esc(s.time_nice)}${durChip}</span>
           <span class="${labelClass}">${esc(s.subject)}</span>
         </div>`;
       });
